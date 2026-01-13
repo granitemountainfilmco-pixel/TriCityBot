@@ -2,4 +2,4 @@ fastapi
 uvicorn
 ollama
 pydantic
-googlesearch-python
+duckduckgo-search
