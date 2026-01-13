@@ -1,35 +1,28 @@
 @echo off
 set "ROOT_DIR=%~dp0"
 
-:: 1. Start Ollama
+:: 1. Start Ollama (Hidden)
 start /min "" ollama serve
 
-:: 2. Backend Setup & Launch
-echo [BACKEND] Checking environment...
+:: 2. Setup & Launch Backend in SEPARATE window
+echo [BACKEND] Syncing environment...
 cd /d "%ROOT_DIR%backend"
-if not exist "venv" (
-    echo [BACKEND] Creating Virtual Environment...
-    python -m venv venv
-)
-:: Call install in the current window to ensure it's done before launching
+if not exist "venv" python -m venv venv
 call venv\Scripts\activate
-echo [BACKEND] Installing/Updating Requirements...
-python -m pip install --upgrade pip
-pip install -r requirements.txt --quiet
-:: Now launch the actual server in a new window
+pip install fastapi uvicorn ollama tavily-python pydantic --quiet
+
+:: Use 'start' to spawn a new window so this script can continue
 start "ShopOS-Backend" cmd /k "cd /d %ROOT_DIR%backend && venv\Scripts\activate && python main.py"
 
-:: 3. Frontend Setup & Launch
-echo [FRONTEND] Checking Node modules...
+:: 3. Setup & Launch Frontend in SEPARATE window
+echo [FRONTEND] Syncing Node...
 cd /d "%ROOT_DIR%frontend"
-if not exist "node_modules" (
-    echo [FRONTEND] Installing dependencies (this may take a minute)...
-    call npm install
-)
-:: Launch Vite with --force to clear cache
+if not exist "node_modules" call npm install
+
+:: Use 'start' to spawn a new window
 start "ShopOS-Frontend" cmd /k "cd /d %ROOT_DIR%frontend && npm run dev -- --force"
 
-:: 4. Final Launch
-echo Everything is starting up...
+:: 4. Final Launch (Now this will actually reach here!)
+echo [SYSTEM] Waiting for servers to warm up...
 timeout /t 8
 start chrome http://localhost:5173
