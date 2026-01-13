@@ -16,12 +16,7 @@ export default function ChatInterface() {
     recognition.interimResults = true;
     recognition.lang = 'en-US';
 
-    recognition.onstart = () => {
-      isStarted.current = true;
-      setMicStatus('ON');
-      console.log("MICROPHONE: Active");
-    };
-
+    recognition.onstart = () => { isStarted.current = true; setMicStatus('ON'); };
     recognition.onresult = (event: any) => {
       if (isProcessing) return;
       let transcript = '';
@@ -34,21 +29,11 @@ export default function ChatInterface() {
         if (triggers.some(t => cleanText.includes(t))) handleCommand(cleanText);
       }
     };
-
-    recognition.onerror = (e: any) => {
-      console.error("MIC ERROR:", e.error);
-      if (e.error === 'aborted') isStarted.current = false;
-    };
-
     recognition.onend = () => {
       isStarted.current = false;
       setMicStatus('OFF');
-      // Only restart if the AI isn't currently speaking
-      if (!isProcessing) {
-        setTimeout(() => { if (!isStarted.current) recognition.start(); }, 300);
-      }
+      if (!isProcessing) setTimeout(() => { if (!isStarted.current) recognition.start(); }, 300);
     };
-
     recognitionRef.current = recognition;
     recognition.start();
   };
@@ -75,33 +60,28 @@ export default function ChatInterface() {
     utterance.onend = () => {
       clearTimeout(safety);
       setIsProcessing(false);
-      // Give the system a moment before restarting the mic
       setTimeout(() => { if (!isStarted.current && recognitionRef.current) recognitionRef.current.start(); }, 500);
     };
     window.speechSynthesis.speak(utterance);
   };
 
   return (
-    <div className="bg-slate-900 border-2 border-blue-500/20 rounded-3xl p-8 w-full max-w-2xl shadow-2xl font-sans">
+    <div className="bg-slate-900 border-2 border-blue-500/20 rounded-3xl p-8 w-full max-w-2xl shadow-2xl font-sans text-white">
       <div className="flex items-center justify-between mb-8">
         <div>
-            <h1 className="text-xl font-bold text-blue-500 uppercase tracking-tighter">Shop OS v3.8</h1>
-            <p className="text-[10px] text-slate-500 font-mono">STATUS: {isProcessing ? 'AI_TALKING' : 'LISTENING'}</p>
+          <h1 className="text-xl font-bold text-blue-500 tracking-tighter">SHOP OS v3.8</h1>
+          <div className={`text-[10px] uppercase ${isProcessing ? 'text-red-500 animate-pulse' : 'text-green-500'}`}>
+            {isProcessing ? 'AI Speaking...' : 'Mic Ready'}
+          </div>
         </div>
-        <button 
-            onClick={initMic} 
-            className={`px-4 py-2 rounded-xl text-[10px] font-black transition-all ${micStatus === 'ON' ? 'bg-green-500/10 text-green-500 border border-green-500/50' : 'bg-blue-600 text-white animate-bounce'}`}
-        >
+        <button onClick={initMic} className={`px-4 py-2 rounded-xl text-[10px] font-black ${micStatus === 'ON' ? 'bg-green-500/10 text-green-500 border border-green-500' : 'bg-blue-600 animate-bounce'}`}>
           {micStatus === 'ON' ? 'MIC LIVE' : 'ACTIVATE MIC'}
         </button>
       </div>
-      
       <div className="h-80 overflow-y-auto space-y-4 mb-4 scrollbar-hide">
         {messages.map((m, i) => (
           <div key={i} className={`flex ${m.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`p-4 rounded-2xl text-sm ${m.sender === 'user' ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-800 text-slate-300'}`}>
-              {m.text}
-            </div>
+            <div className={`p-4 rounded-2xl text-sm ${m.sender === 'user' ? 'bg-blue-600' : 'bg-slate-800'}`}>{m.text}</div>
           </div>
         ))}
       </div>
