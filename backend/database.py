@@ -8,7 +8,6 @@ def get_db_connection():
 def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
-    # Objective Fix: Create the table structure automatically on launch
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS inventory (
             name TEXT PRIMARY KEY,
@@ -18,4 +17,4 @@ def init_db():
     ''')
     conn.commit()
     conn.close()
-    print("Database Initialized: 'inventory' table is ready.")
+    print("Database Structured: Table 'inventory' is ready.")
