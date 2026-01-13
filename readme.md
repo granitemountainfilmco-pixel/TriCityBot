@@ -11,7 +11,7 @@
 
 **Easy way**
 Run the start_shop script for your Operating System (.bat for windows, .sh for Ubuntu, other distros not supported)
-For Ubuntu make sure you open a terminal in the correct location (inside the main folder) and run ` ` ` chmod +x start_shop.sh ` ` `
+For Ubuntu make sure you open a terminal in the correct location (inside the main folder) and run ` chmod +x start_shop.sh `
 
 If that doesn't work proceed to the manual installation
 
@@ -20,31 +20,31 @@ Ensure Ollama is downloaded from ollama.com
 
 Ensure nodejs is downloaded
 
-Open your terminal and run: ` ` ` ollama pull llama3.1 ` ` `
+Open your terminal and run: ` ollama pull llama3.1 `
 
 Keep the terminal open or make sure ollama is running in the background
 
 In a new terminal window, navigate to the main folder of the program, than
 
 **For Windows, Run:** 
-` ` ` cd backend
+ ` cd backend
 python -m venv venv
 venv\Scripts\activate
 pip install -r requirements.txt
-python main.py ` ` `
+python main.py `
 
 **For Ubuntu, Run:**
-` ` ` cd backend
+ ` cd backend
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-python3 main.py ` ` `
+python3 main.py `
 
 **Frontend**
 Open a second terminal and navigate to the main folder of the program, than run
-` ` ` cd frontend
+ ` cd frontend
 npm install
-npm run dev ` ` `
+npm run dev `
 
 The output will normally say Local: http://localhost:5173
 Run it in chrome (best for this program without extra plugins)
