@@ -15,43 +15,49 @@ class Query(BaseModel): text: str
 async def chat(query: Query):
     user_input = query.text.strip().lower()
     
-    # --- 1. THE DATA EXTRACTOR (Fixes "5090500") ---
-    # This greedy regex captures the name and the final digits separately.
+    # --- TRIGGER WORD LOGIC ---
+    # Only responds if the sentence starts with a trigger word.
+    trigger_words = ["hey shop", "assistant", "okay shop", "shop"]
+    is_triggered = any(user_input.startswith(word) for word in trigger_words)
+    
+    if not is_triggered:
+        return {"response": ""}
+
+    # Clean the trigger word out for better processing
+    for word in trigger_words:
+        if user_input.startswith(word):
+            user_input = user_input.replace(word, "", 1).strip()
+            break
+
+    # --- 1. DATA EXTRACTOR (Fixes "5090500") ---
     add_match = re.search(r"add\s+(.+?)\s*(?:for|at|[:\-])?\s*(\d+)$", user_input)
     if add_match:
         name, price = add_match.groups()
         return {"response": tools.add_to_inventory(name, price)}
 
-    # --- 2. INVENTORY CHECK (Restored Logic) ---
+    # --- 2. INVENTORY TOOLS (Fixed 'pass' issue) ---
     if any(k in user_input for k in ['check', 'stock', 'inventory', 'have']):
         response = ollama.chat(
             model='llama3.1',
-            messages=[
-                {'role': 'system', 'content': "Tool mode. Output ONLY the tool call."},
-                {'role': 'user', 'content': user_input}
-            ],
+            messages=[{'role': 'system', 'content': "Output ONLY tool calls."}, {'role': 'user', 'content': user_input}],
             tools=[tools.check_inventory, tools.remove_from_inventory]
         )
         if response.message.tool_calls:
             res = [getattr(tools, t.function.name)(**t.function.arguments) for t in response.message.tool_calls]
             return {"response": " ".join(res)}
 
-    # --- 3. THE RESEARCH PATH (Strictly Concise) ---
-    else:
-        kw_gen = ollama.generate(model='llama3.1', prompt=f"Keywords for: '{user_input}'. Words only.")
-        web_data = tools.web_research(kw_gen['response'].strip())
-        
-        summary = ollama.chat(
-            model='llama3.1',
-            messages=[
-                {
-                    'role': 'system', 
-                    'content': f"FACTS: {web_data}\n\nINSTRUCTION: One short sentence only (max 15 words). No preamble."
-                },
-                {'role': 'user', 'content': user_input}
-            ]
-        )
-        return {"response": summary.message.content}
+    # --- 3. RESEARCH PATH (Concise) ---
+    kw_gen = ollama.generate(model='llama3.1', prompt=f"Search terms for: '{user_input}'.")
+    web_data = tools.web_research(kw_gen['response'].strip())
+    
+    summary = ollama.chat(
+        model='llama3.1',
+        messages=[
+            {'role': 'system', 'content': f"FACTS: {web_data}\n\nINSTRUCTION: Answer in ONE sentence (max 15 words)."},
+            {'role': 'user', 'content': user_input}
+        ]
+    )
+    return {"response": summary.message.content}
 
 if __name__ == "__main__":
     import uvicorn
