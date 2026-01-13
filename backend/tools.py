@@ -1,16 +1,23 @@
 import os
+import sqlite3
 from tavily import TavilyClient
-from database import get_db_connection
 
-# Get your key from tavily.com (Free tier: 1000 searches/mo)
-TAVILY_API_KEY = "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"
-#Replace this with yours
+# --- CONFIGURATION ---
+TAVILY_API_KEY = "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"  # Get this from tavily.com
 tavily = TavilyClient(api_key=TAVILY_API_KEY)
 
+def get_db_connection():
+    conn = sqlite3.connect('shop.db')
+    conn.row_factory = sqlite3.Row
+    return conn
+
+# --- INVENTORY TOOLS ---
 def add_to_inventory(name: str, price: str, quantity: int = 1):
     try:
-        clean_name = str(name).upper().replace("ADD ", "").strip()
+        clean_name = str(name).upper().strip()
+        # Remove '$' and commas to turn "2,500" into 2500.0
         clean_price = float(str(price).replace("$", "").replace(",", "").strip())
+        
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("""
@@ -20,47 +27,45 @@ def add_to_inventory(name: str, price: str, quantity: int = 1):
         """, (clean_name, clean_price, quantity, quantity, clean_price))
         conn.commit()
         conn.close()
-        return f"Confirmed: {clean_name} added at ${clean_price}."
+        return f"Successfully logged: {clean_name} at ${clean_price:,.2f}."
     except Exception as e:
-        return f"Error: Could not parse '{price}' as a valid price."
+        return f"Failed to log item. Price '{price}' is invalid."
 
 def check_inventory(query: str):
+    # Standardize the search term
     term = str(query).upper().replace("CHECK ", "").replace("STOCK ", "").strip()
     conn = get_db_connection()
     cursor = conn.cursor()
-    # Uses SQL wildcards to find "RTX 5090" even if input is "RTX5090"
-    fuzzy = term.replace("RTX", "RTX%")
-    cursor.execute("SELECT * FROM inventory WHERE name LIKE ?", (f"%{fuzzy}%",))
+    # Fuzzy search: Finds "RTX 5090" even if the query is "rtx5090"
+    fuzzy = f"%{term.replace(' ', '%')}%"
+    cursor.execute("SELECT * FROM inventory WHERE name LIKE ?", (fuzzy,))
     items = cursor.fetchall()
     conn.close()
-    if not items: return f"I have no record of {term} in our stock."
-    return "Stock Found: " + ", ".join([f"{i['name']} (${i['price']})" for i in items])
+    if not items: return f"I couldn't find '{term}' in your local inventory."
+    return "Inventory Match: " + ", ".join([f"{i['name']} (${i['price']:,.2f})" for i in items])
 
 def remove_from_inventory(name: str):
-    clean = str(name).upper().replace("REMOVE ", "").strip()
+    clean = str(name).upper().strip()
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM inventory WHERE name LIKE ?", (f"%{clean}%",))
+    cursor.execute("DELETE FROM inventory WHERE name = ?", (clean,))
     count = cursor.rowcount
     conn.commit()
     conn.close()
-    return f"Removed {clean} from system." if count > 0 else f"Item {clean} not found."
+    return f"Deleted {clean}." if count > 0 else f"Item '{clean}' not found."
 
+# --- RESEARCH TOOLS ---
 def web_research(query: str):
-    """The new 'Anti-Hallucination' search logic."""
+    """Fetches real-time market data to prevent AI hallucinations."""
     try:
-        print(f"DEBUG: Tavily fetching for: {query}")
-        # search_depth="advanced" ensures it finds actual prices/specs
+        print(f"Tavily Fetching: {query}")
+        # Search depth 'advanced' gives more factual snippets for prices
         response = tavily.search(query=query, search_depth="advanced", max_results=3)
         
         context = []
         for r in response['results']:
-            context.append(f"Title: {r['title']}\nSnippet: {r['content']}")
+            context.append(f"Source: {r['title']}\nContent: {r['content']}")
         
-        if not context:
-            return "No current market data found on the web."
-            
-        return "\n---\n".join(context)
+        return "\n---\n".join(context) if context else "No web results found."
     except Exception as e:
-        print(f"Tavily Error: {e}")
-        return "Search Service currently unavailable."
+        return f"Web search error: {str(e)}"
