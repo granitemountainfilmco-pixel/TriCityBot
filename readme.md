@@ -1,9 +1,10 @@
 **Operation instructions**
 
-Command Type	    Trigger Keywords	                              Example Voice Command
-Add Item	        add	                                            "Add an RTX 4090 for 1600 dollars."
-Check Stock	      check, inventory, stock, have, list	            "Check if we have any thermal paste."
-Remove Item	      remove, delete	                                "Remove the broken power supply."
+Add Item	            add	                                                     "Add an RTX 5090 for 2500 dollars."
+Check Stock          check, inventory, stock, have, list	                      "Check if we have any thermal paste."
+Remove Item	          remove, delete	                                          "Remove the broken power supply."
+Work Tickets	        ticket	                                                  "Create a ticket to fix the front door lock."
+Reminders            	remind	                                                  "Remind me to call the vendor at 4 PM." (note, this is passive for now, you would have to ask "list my reminders)
 
 
 **Easy way**
