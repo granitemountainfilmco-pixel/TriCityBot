@@ -15,28 +15,19 @@ class Query(BaseModel): text: str
 async def chat(query: Query):
     user_input = query.text.strip().lower()
     
-    # --- TRIGGER WORD LOGIC ---
-    # Only responds if the sentence starts with a trigger word.
+    # 1. TRIGGER WORD CLEANUP
     trigger_words = ["hey shop", "assistant", "okay shop", "shop"]
-    is_triggered = any(user_input.startswith(word) for word in trigger_words)
-    
-    if not is_triggered:
-        return {"response": ""}
+    is_triggered = any(word in user_input for word in trigger_words)
+    if not is_triggered: return {"response": ""}
 
-    # Clean the trigger word out for better processing
-    for word in trigger_words:
-        if user_input.startswith(word):
-            user_input = user_input.replace(word, "", 1).strip()
-            break
-
-    # --- 1. DATA EXTRACTOR (Fixes "5090500") ---
+    # 2. DATA EXTRACTOR (Fixes "5090500")
     add_match = re.search(r"add\s+(.+?)\s*(?:for|at|[:\-])?\s*(\d+)$", user_input)
     if add_match:
         name, price = add_match.groups()
         return {"response": tools.add_to_inventory(name, price)}
 
-    # --- 2. INVENTORY TOOLS (Fixed 'pass' issue) ---
-    if any(k in user_input for k in ['check', 'stock', 'inventory', 'have']):
+    # 3. INVENTORY CHECK (Restored Logic)
+    if any(k in user_input for k in ['check', 'stock', 'inventory']):
         response = ollama.chat(
             model='llama3.1',
             messages=[{'role': 'system', 'content': "Output ONLY tool calls."}, {'role': 'user', 'content': user_input}],
@@ -46,10 +37,9 @@ async def chat(query: Query):
             res = [getattr(tools, t.function.name)(**t.function.arguments) for t in response.message.tool_calls]
             return {"response": " ".join(res)}
 
-    # --- 3. RESEARCH PATH (Concise) ---
-    kw_gen = ollama.generate(model='llama3.1', prompt=f"Search terms for: '{user_input}'.")
+    # 4. RESEARCH PATH (Concise)
+    kw_gen = ollama.generate(model='llama3.1', prompt=f"Keywords for: '{user_input}'.")
     web_data = tools.web_research(kw_gen['response'].strip())
-    
     summary = ollama.chat(
         model='llama3.1',
         messages=[
