@@ -9,6 +9,11 @@ app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 init_db()
 
+try:
+    ollama.list()
+    print("Ollama Connection: SUCCESS")
+except Exception:
+    print("Ollama Connection: FAILED.")
 class Query(BaseModel): text: str
 
 # Define tool schemas for Ollama 3.1+
