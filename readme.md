@@ -1,3 +1,8 @@
+**Easy way**
+Run the start_shop script for your Operating System (.bat for windows, .sh for Ubuntu, other distros not supported)
+
+If that doesn't work proceed to the manual installation
+
 **Backend**
 Ensure Ollama is downloaded from ollama.com
 
