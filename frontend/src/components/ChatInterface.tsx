@@ -14,7 +14,6 @@ export default function ChatInterface() {
     const recognition = new SpeechRecognition();
     recognition.continuous = true;
     recognition.interimResults = true;
-    recognition.lang = 'en-US';
 
     recognition.onstart = () => { isStarted.current = true; setMicStatus('ON'); };
     recognition.onresult = (event: any) => {
@@ -25,8 +24,7 @@ export default function ChatInterface() {
       }
       if (event.results[event.results.length - 1].isFinal) {
         const cleanText = transcript.trim().toLowerCase();
-        const triggers = ['add', 'check', 'research', 'remove', 'delete', 'stock'];
-        if (triggers.some(t => cleanText.includes(t))) handleCommand(cleanText);
+        if (cleanText.length > 2) handleCommand(cleanText);
       }
     };
     recognition.onend = () => {
@@ -56,23 +54,22 @@ export default function ChatInterface() {
   const speak = (text: string) => {
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
-    const safety = setTimeout(() => setIsProcessing(false), 10000);
+    const safety = setTimeout(() => setIsProcessing(false), 12000);
     utterance.onend = () => {
       clearTimeout(safety);
       setIsProcessing(false);
-      setTimeout(() => { if (!isStarted.current && recognitionRef.current) recognitionRef.current.start(); }, 500);
     };
     window.speechSynthesis.speak(utterance);
   };
 
   return (
-    <div className="bg-slate-900 border-2 border-blue-500/20 rounded-3xl p-8 w-full max-w-2xl shadow-2xl font-sans text-white">
+    <div className="bg-slate-900 border-2 border-blue-500/20 rounded-3xl p-8 w-full max-w-2xl shadow-2xl text-white font-sans">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-xl font-bold text-blue-500 tracking-tighter">SHOP OS v3.8</h1>
-          <div className={`text-[10px] uppercase ${isProcessing ? 'text-red-500 animate-pulse' : 'text-green-500'}`}>
-            {isProcessing ? 'AI Speaking...' : 'Mic Ready'}
-          </div>
+          <h1 className="text-xl font-bold text-blue-500 uppercase tracking-tighter">Shop OS v3.9</h1>
+          <p className={`text-[10px] ${isProcessing ? 'text-red-500 animate-pulse' : 'text-green-500'}`}>
+            {isProcessing ? 'PROCESSING...' : 'LISTENING'}
+          </p>
         </div>
         <button onClick={initMic} className={`px-4 py-2 rounded-xl text-[10px] font-black ${micStatus === 'ON' ? 'bg-green-500/10 text-green-500 border border-green-500' : 'bg-blue-600 animate-bounce'}`}>
           {micStatus === 'ON' ? 'MIC LIVE' : 'ACTIVATE MIC'}
