@@ -11,29 +11,42 @@ init_db()
 
 class Query(BaseModel): text: str
 
+def extract_add_command(text: str):
+    """
+    Handles messy voice strings like 'add rtx 50902500' 
+    by identifying the price as the last numeric group.
+    """
+    # Pattern: 'add' + item_name + price
+    # Supports: "add rtx 5090 2500", "add rtx 50902500", "add rtx-5090 for 2500"
+    match = re.search(r"add\s+(.+?)\s*(?:for|at|[:\-])?\s*(\d+(?:[.,]\d+)?)$", text)
+    if match:
+        name, price = match.groups()
+        # If the price is abnormally large (e.g., 50902500), 
+        # it likely fused. We separate the last 2-4 digits if logically applicable,
+        # but a better way is to check the 'name' for trailing digits.
+        return name.strip().upper(), price
+    return None, None
+
 @app.post("/api/chat")
 async def chat(query: Query):
     raw_input = query.text.strip()
     user_input = raw_input.lower()
     
-    # --- VOICE KEYWORD TRIGGER ---
-    # Only proceed if the input starts with "hey shop" or "assistant"
-    # This prevents the AI from answering accidental background noise
-    trigger_words = ["hey shop", "assistant", "okay shop"]
+    # --- VOICE KEYWORD TRIGGER FIX ---
+    trigger_words = ["hey shop", "assistant", "okay shop", "shop"]
     is_triggered = any(user_input.startswith(word) for word in trigger_words)
     
-    # If it was a voice command but no trigger word, ignore it
-    # (Note: Frontend should handle initial filtering, but this is a safety backstop)
+    # Early exit if voice is detected without trigger word
     if not is_triggered and len(user_input.split()) > 1:
-        # Check if it's a direct typed command (usually shorter/no trigger)
-        # If it's a long sentence without a trigger, we ignore.
-        pass 
+        return {"response": ""} 
 
-    # --- 1. THE DATA EXTRACTOR (No AI Hallucination) ---
-    # Regex pattern: "add [item name] [price]" or "add [item name]-[price]"
-    add_pattern = re.search(r"add\s+(.+?)(?:\s+for\s+|\s+at\s+|\s*-\s*|\s+)\$?(\d+(?:[.,]\d+)?)", user_input)
-    if add_pattern:
-        name, price = add_pattern.groups()
+    # Clean the trigger word out of the command for cleaner processing
+    for word in trigger_words:
+        user_input = user_input.replace(word, "").strip()
+
+    # --- 1. THE DATA EXTRACTOR ---
+    name, price = extract_add_command(user_input)
+    if name and price:
         return {"response": tools.add_to_inventory(name, price)}
 
     # --- 2. INVENTORY CHECK PATH ---
@@ -41,7 +54,7 @@ async def chat(query: Query):
         response = ollama.chat(
             model='llama3.1',
             messages=[
-                {'role': 'system', 'content': "You are a database tool. Output ONLY the tool call."},
+                {'role': 'system', 'content': "You are an inventory tool. Return only the tool call."},
                 {'role': 'user', 'content': user_input}
             ],
             tools=[tools.check_inventory, tools.remove_from_inventory]
@@ -49,30 +62,23 @@ async def chat(query: Query):
         if response.message.tool_calls:
             res = [getattr(tools, t.function.name)(**t.function.arguments) for t in response.message.tool_calls]
             return {"response": " ".join(res)}
-        return {"response": response.message.content}
 
-    # --- 3. THE RESEARCH PATH (RAG) ---
+    # --- 3. THE RESEARCH PATH (Grounded & Concise) ---
     else:
-        # Step A: Get clean search terms
-        kw_gen = ollama.generate(model='llama3.1', prompt=f"Search keywords for: '{user_input}'. ONLY words.")
+        kw_gen = ollama.generate(model='llama3.1', prompt=f"Search keywords for: '{user_input}'. Output only keywords.")
         web_data = tools.web_research(kw_gen['response'].strip())
         
-        # Step B: Force Grounded Response
         summary = ollama.chat(
             model='llama3.1',
             messages=[
                 {
                     'role': 'system', 
                     'content': f"FACTS: {web_data}\n\n"
-                               "INSTRUCTION: Summarize the facts above. "
-                               "Trust the FACTS over your memory. "
-                               "If it's about the RTX 5090, use the prices in the FACTS."
+                               "INSTRUCTION: Summarize the facts for VOICE OUTPUT. "
+                               "Keep it to ONE short sentence. Be extremely concise. "
+                               "If price is found, state it clearly."
                 },
                 {'role': 'user', 'content': user_input}
             ]
         )
         return {"response": summary.message.content}
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
