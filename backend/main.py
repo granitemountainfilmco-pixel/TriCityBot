@@ -5,21 +5,12 @@ import ollama
 import tools
 from database import init_db
 
-# 1. INITIALIZE THE APP (This fixes your NameError)
 app = FastAPI()
-
-# 2. SETUP MIDDLEWARE
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 class Query(BaseModel):
     text: str
 
-# 3. DEFINE ROUTES
 @app.post("/api/chat")
 async def chat(query: Query):
     user_input = query.text.lower()
@@ -29,10 +20,17 @@ async def chat(query: Query):
     
     try:
         if any(k in user_input for k in inventory_keywords):
-            # Local Database Path
+            # EXTRACTION MODE: Helps AI split merged words like 'rtx5090500'
             response = ollama.chat(
                 model='llama3.1',
-                messages=[{'role': 'user', 'content': query.text}],
+                messages=[
+                    {
+                        'role': 'system', 
+                        'content': 'You are a shop inventory expert. If product names and prices are merged in the text, split them. '
+                                   'Example: "rtx3080500" means Name="RTX 3080", Price=500.'
+                    },
+                    {'role': 'user', 'content': query.text}
+                ],
                 tools=[tools.add_to_inventory, tools.check_inventory, tools.remove_from_inventory]
             )
             
@@ -45,26 +43,22 @@ async def chat(query: Query):
             return {"response": response.message.content}
 
         else:
-            # Deep Research Path
-            kw_gen = ollama.generate(model='llama3.1', prompt=f"Keywords for: '{query.text}'. Max 3 words.")
+            # RESEARCH PATH
+            kw_gen = ollama.generate(model='llama3.1', prompt=f"Extract 3 keywords: '{query.text}'")
             keywords = kw_gen['response'].strip()
-            
             raw_data = tools.web_research(keywords)
-            
             final = ollama.chat(
                 model='llama3.1',
                 messages=[
-                    {'role': 'system', 'content': 'You are a shop assistant. Answer in one short sentence.'},
-                    {'role': 'user', 'content': f"Data: {raw_data}\n\nQuestion: {query.text}"}
+                    {'role': 'system', 'content': 'Summarize the data into one professional sentence.'},
+                    {'role': 'user', 'content': f"Data: {raw_data}\nQ: {query.text}"}
                 ]
             )
             return {"response": final.message.content}
             
     except Exception as e:
-        print(f"Server Error: {e}")
-        return {"response": "I encountered an internal error. Please check the backend console."}
+        return {"response": f"Server Error: {str(e)}"}
 
-# 4. START THE SERVER
 if __name__ == "__main__":
     init_db()
     import uvicorn
