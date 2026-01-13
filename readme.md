@@ -11,7 +11,8 @@
 
 **Easy way**
 Run the start_shop script for your Operating System (.bat for windows, .sh for Ubuntu, other distros not supported)
-For Ubuntu make sure you open a terminal in the correct location (inside the main folder) and run ` chmod +x start_shop.sh `
+For Ubuntu make sure you open a terminal in the correct location (inside the main folder) and run:  
+` chmod +x start_shop.sh `
 
 If that doesn't work proceed to the manual installation
 
