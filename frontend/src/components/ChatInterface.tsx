@@ -5,26 +5,49 @@ export default function ChatInterface() {
   const [isProcessing, setIsProcessing] = useState(false);
   const recognitionRef = useRef<any>(null);
 
-  useEffect(() => {
+useEffect(() => {
     const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
     if (!SpeechRecognition) return;
 
     recognitionRef.current = new SpeechRecognition();
-    recognitionRef.current.continuous = true;
     
+    // 1. IMPROVED SETTINGS FOR ACCURACY
+    recognitionRef.current.continuous = true;
+    recognitionRef.current.interimResults = true; // Allows the AI to "correct" misheard words
+    recognitionRef.current.lang = 'en-US';
+    recognitionRef.current.maxAlternatives = 1;
+
+    let finalTranscript = '';
+
     recognitionRef.current.onresult = (event: any) => {
-      if (isProcessing) return; // Don't listen while AI is talking
-      const text = event.results[event.results.length - 1][0].transcript.trim().toLowerCase();
-      
-      const commands = ['add', 'check', 'research', 'remove', 'search', 'delete', 'do we'];
-      if (commands.some(cmd => text.includes(cmd))) {
-        handleCommand(text);
+      if (isProcessing) return;
+
+      let interimTranscript = '';
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          finalTranscript = event.results[i][0].transcript.trim().toLowerCase();
+          
+          // 2. TRIGGER VALIDATION
+          // We check the final "corrected" version for our shop keywords
+          const triggers = ['add', 'check', 'research', 'remove', 'search', 'delete', 'stock'];
+          if (triggers.some(t => finalTranscript.includes(t))) {
+            handleCommand(finalTranscript);
+            finalTranscript = ''; // Reset after trigger
+          }
+        } else {
+          interimTranscript += event.results[i][0].transcript;
+          // You could optionally show this "live" text in the UI
+        }
       }
     };
 
-    recognitionRef.current.onend = () => recognitionRef.current.start();
+    recognitionRef.current.onend = () => {
+      // Auto-restart if not processing to keep the "Always Listening" feel
+      if (!isProcessing) recognitionRef.current.start();
+    };
+
     recognitionRef.current.start();
-  }, [isProcessing]);
+}, [isProcessing]);
 
   const handleCommand = async (text: string) => {
     setIsProcessing(true);
