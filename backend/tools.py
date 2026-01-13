@@ -30,13 +30,25 @@ def remove_from_inventory(name: str):
         return f"Error removing item: {str(e)}"
 
 def check_inventory(query: str):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM inventory WHERE name LIKE ?", (f"%{query}%",))
-    items = cursor.fetchall()
-    conn.close()
-    if not items: return "That item is not in our inventory."
-    return "Stock Status: " + ", ".join([f"{i['name']} (${i['price']})" for i in items])
+    """Searches the database for items matching the query name."""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        # % symbols allow for partial matches (e.g., "4090" finds "RTX 4090")
+        cursor.execute("SELECT * FROM inventory WHERE name LIKE ?", (f"%{query}%",))
+        items = cursor.fetchall()
+        conn.close()
+        
+        if not items: 
+            return f"I couldn't find any items matching '{query}' in our stock."
+            
+        res = "Inventory found: "
+        for i in items:
+            res += f"{i['name']} is ${i['price']} (Quantity: {i['quantity']}). "
+        return res
+    except Exception as e:
+        return f"Database error: {str(e)}"
+        
 
 def web_research(query: str):
     """Broad-spectrum search that bypasses common bot blocks."""
