@@ -1,10 +1,12 @@
-**Operation instructions**
+### Operation Instructions
 
-Add Item	     .       add	                                        .             "Add an RTX 5090 for 2500 dollars."
-Check Stock    .      check, inventory, stock, have, list	          .            "Check if we have any thermal paste."
-Remove Item	   .       remove, delete	                              .            "Remove the broken power supply."
-Work Tickets	 .       ticket	                                      .            "Create a ticket to fix the front door lock."
-Reminders      .      	remind	                                    .              "Remind me to call the vendor at 4 PM." (note, this is passive for now, you would have to ask "list my reminders)
+| Feature | Keywords / Triggers | Example Command |
+| :--- | :--- | :--- |
+| **Add Item** | add | "Shop add an RTX 5090 for 2500 dollars" |
+| **Check Stock** | check, inventory, stock, have, list | "Shop check if we have any thermal paste" |
+| **Remove Item** | remove, delete | "Shop remove the broken power supply" |
+| **Work Tickets** | ticket, list tickets | "Shop create a ticket to fix the front door lock" |
+| **Reminders** | remind, list reminders | "Shop remind me to call the vendor at 4 PM" |
 
 
 **Easy way**
