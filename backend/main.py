@@ -6,6 +6,7 @@ from pydantic import BaseModel
 import tools 
 from database import init_db
 import re
+from datetime import datetime
 
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -15,9 +16,13 @@ class ChatRequest(BaseModel):
     text: str
 
 def route_command(user_input: str):
-    # SYSTEM PROMPT: Updated with Reminder and Deletion capabilities
-    system_prompt = """
-    You are a Shop OS Router. Categorize the user's request into a tool command.
+    # Dynamically get today's date for the AI to use as a reference
+    today = datetime.now().strftime("%A, %B %d, %Y")
+
+    system_prompt = f"""
+    You are a Shop OS Router for Tri City Computers. Categorize the user's request into a tool command.
+    Today is {today}. Use this to calculate relative dates like 'tomorrow' or 'next Friday'.
+    
     OUTPUT ONLY THE COMMAND STRING. NO PROSE. NO EXPLANATIONS.
     
     Format: ACTION | SUBJECT | VALUE | QTY
@@ -30,11 +35,13 @@ def route_command(user_input: str):
     - CREATE_TICKET (New task) -> CREATE_TICKET | [task] | 0 | 0
     - LIST_TICKETS (See tasks) -> LIST_TICKETS | None | 0 | 0
     - DELETE_TICKET (Complete task) -> DELETE_TICKET | [ticket_id] | 0 | 0
+    - CALENDAR (Schedule event) -> CALENDAR | [summary] | [ISO date-time] | 0
     - REMIND (Set reminder) -> REMIND | [message] | [time] | 0
     - LIST_REMINDERS (See reminders) -> LIST_REMINDERS | None | 0 | 0
     - DELETE_REMINDER (Remove reminder) -> DELETE_REMINDER | [exact message] | 0 | 0
     - RESEARCH (Find info) -> RESEARCH | [query] | 0 | 0
     
+    For CALENDAR, always format the date-time as YYYY-MM-DDTHH:MM.
     If you don't understand, output: UNKNOWN | None | 0 | 0
     """
 
@@ -74,11 +81,11 @@ def route_command(user_input: str):
             return tools.list_tickets()
 
         elif action == "DELETE_TICKET":
-            # Strip '#' if AI or user included it for the ID
             clean_id = subject.replace('#', '')
             return tools.delete_ticket(clean_id)
 
         elif action == "CALENDAR":
+            # Passes [summary] and [ISO date-time]
             return tools.add_calendar_event(subject, value)
             
         elif action == "REMIND":
@@ -100,7 +107,7 @@ def route_command(user_input: str):
 
     except Exception as e:
         print(f"Error in Router: {e}")
-        return "Internal Routing Error."
+        return f"Internal Routing Error: {str(e)}"
 
     return "Command not recognized."
 
