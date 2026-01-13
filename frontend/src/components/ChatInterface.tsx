@@ -5,52 +5,46 @@ export default function ChatInterface() {
   const [isProcessing, setIsProcessing] = useState(false);
   const recognitionRef = useRef<any>(null);
 
-useEffect(() => {
+  useEffect(() => {
     const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
     if (!SpeechRecognition) return;
 
-    recognitionRef.current = new SpeechRecognition();
-    
-    // 1. IMPROVED SETTINGS FOR ACCURACY
-    recognitionRef.current.continuous = true;
-    recognitionRef.current.interimResults = true; // Allows the AI to "correct" misheard words
-    recognitionRef.current.lang = 'en-US';
-    recognitionRef.current.maxAlternatives = 1;
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true; // High accuracy mode
+    recognition.lang = 'en-US';
 
-    let finalTranscript = '';
-
-    recognitionRef.current.onresult = (event: any) => {
+    recognition.onresult = (event: any) => {
+      // If we are currently "processing" (AI is thinking or talking), ignore input
       if (isProcessing) return;
 
-      let interimTranscript = '';
       for (let i = event.resultIndex; i < event.results.length; ++i) {
         if (event.results[i].isFinal) {
-          finalTranscript = event.results[i][0].transcript.trim().toLowerCase();
-          
-          // 2. TRIGGER VALIDATION
-          // We check the final "corrected" version for our shop keywords
-          const triggers = ['add', 'check', 'research', 'remove', 'search', 'delete', 'stock'];
-          if (triggers.some(t => finalTranscript.includes(t))) {
-            handleCommand(finalTranscript);
-            finalTranscript = ''; // Reset after trigger
+          const transcript = event.results[i][0].transcript.trim().toLowerCase();
+          console.log("Finalized Speech:", transcript);
+
+          // Trigger keywords
+          const triggers = ['add', 'check', 'research', 'remove', 'search', 'delete', 'stock', 'do we'];
+          if (triggers.some(t => transcript.includes(t))) {
+            handleCommand(transcript);
           }
-        } else {
-          interimTranscript += event.results[i][0].transcript;
-          // You could optionally show this "live" text in the UI
         }
       }
     };
 
-    recognitionRef.current.onend = () => {
-      // Auto-restart if not processing to keep the "Always Listening" feel
-      if (!isProcessing) recognitionRef.current.start();
+    // Keep the mic alive
+    recognition.onend = () => {
+      if (!isProcessing) recognition.start();
     };
 
-    recognitionRef.current.start();
-}, [isProcessing]);
+    recognition.start();
+    recognitionRef.current = recognition;
+
+    return () => recognition.stop();
+  }, [isProcessing]);
 
   const handleCommand = async (text: string) => {
-    setIsProcessing(true);
+    setIsProcessing(true); // Locks the mic
     setMessages(prev => [...prev, { sender: 'user', text }]);
 
     try {
@@ -62,23 +56,45 @@ useEffect(() => {
       const data = await res.json();
       setMessages(prev => [...prev, { sender: 'bot', text: data.response }]);
 
-      // --- VOICE OUTPUT ---
-      window.speechSynthesis.cancel(); // Clear queue
-      const utterance = new SpeechSynthesisUtterance(data.response);
-      utterance.onend = () => setIsProcessing(false); // Resume listening after speaking
-      window.speechSynthesis.speak(utterance);
+      speak(data.response);
     } catch (err) {
-      setIsProcessing(false);
+      console.error("Fetch error:", err);
+      setIsProcessing(false); // Unlock mic on error
     }
   };
 
+  const speak = (text: string) => {
+    window.speechSynthesis.cancel(); // Kill any stuck audio
+    
+    const utterance = new SpeechSynthesisUtterance(text);
+    
+    // Safety Force-Unlock: If speech hangs, unlock the mic after 8 seconds anyway
+    const forceUnlock = setTimeout(() => {
+      console.log("Force unlocking mic...");
+      setIsProcessing(false);
+    }, 8000);
+
+    utterance.onend = () => {
+      clearTimeout(forceUnlock);
+      setIsProcessing(false); // RE-ENABLES THE MIC
+      console.log("Speech finished, mic open.");
+    };
+
+    // Ensure a natural voice is selected
+    const voices = window.speechSynthesis.getVoices();
+    utterance.voice = voices.find(v => v.lang === 'en-US') || voices[0];
+    utterance.rate = 1.0;
+
+    window.speechSynthesis.speak(utterance);
+  };
+
   return (
-    <div className="bg-slate-900 border-2 border-blue-500/20 rounded-3xl p-8 w-full max-w-2xl shadow-2xl font-sans">
+    <div className="bg-slate-900 border-2 border-blue-500/20 rounded-3xl p-8 w-full max-w-2xl shadow-2xl">
       <div className="flex items-center justify-between mb-8">
-        <h1 className="text-xl font-bold text-blue-500 tracking-widest">TRI-CITY ASSISTANT</h1>
-        <div className={`h-3 w-3 rounded-full ${isProcessing ? 'bg-yellow-500 animate-pulse' : 'bg-green-500'}`} />
+        <h1 className="text-xl font-bold text-blue-500 tracking-widest">SHOP OS v3.0</h1>
+        <div className={`h-3 w-3 rounded-full ${isProcessing ? 'bg-red-500 animate-pulse' : 'bg-green-500'}`} />
       </div>
-      <div className="h-96 overflow-y-auto space-y-4 mb-6 pr-2">
+      <div className="h-96 overflow-y-auto space-y-4 mb-4">
         {messages.map((m, i) => (
           <div key={i} className={`flex ${m.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`p-4 rounded-2xl text-sm ${m.sender === 'user' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-300'}`}>
@@ -87,9 +103,9 @@ useEffect(() => {
           </div>
         ))}
       </div>
-      <p className="text-[10px] text-slate-500 text-center uppercase tracking-widest">
-        Voice Commands: Add | Remove | Check | Research
-      </p>
+      <div className="text-[10px] text-slate-500 text-center uppercase">
+        {isProcessing ? "AI is Speaking / Thinking" : "Mic Active: Speak a Command"}
+      </div>
     </div>
   );
 }
