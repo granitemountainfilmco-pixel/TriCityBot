@@ -13,18 +13,9 @@ def add_to_inventory(name: str, price: float, quantity: int = 1, notes: str = ""
         )
         conn.commit()
         conn.close()
-        return f"Successfully added {quantity}x {name} at ${price}."
+        return f"Successfully added {name} at ${price}."
     except Exception as e:
-        return f"Error adding to inventory: {str(e)}"
-
-def remove_from_inventory(name: str):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM inventory WHERE name = ?", (name,))
-    rowcount = cursor.rowcount
-    conn.commit()
-    conn.close()
-    return f"Removed {name} from inventory." if rowcount > 0 else f"Item {name} not found."
+        return f"Database error: {str(e)}"
 
 def check_inventory(query: str):
     conn = get_db_connection()
@@ -32,26 +23,18 @@ def check_inventory(query: str):
     cursor.execute("SELECT * FROM inventory WHERE name LIKE ?", (f"%{query}%",))
     items = cursor.fetchall()
     conn.close()
-    if not items: return "No matching items in stock."
-    res = "Inventory found:\n"
+    if not items: return f"Nothing found for {query}."
+    res = "Stock found: "
     for i in items:
-        res += f"- {i['name']}: ${i['price']} (Qty: {i['quantity']})\n"
+        res += f"{i['name']} (${i['price']}). "
     return res
 
 def web_research(query: str):
-    """Robust web search using DuckDuckGo context manager."""
     try:
-        print(f"Searching web for: {query}")
         results_list = []
         with DDGS() as ddgs:
-            for r in ddgs.text(query, max_results=3):
-                results_list.append(f"{r['title']}: {r['body'][:150]}")
-        
-        if not results_list:
-            return "Search returned no results. Try simplifying the query."
-        return "Web Results:\n" + "\n".join(results_list)
-    except Exception as e:
-        return f"Search error: {str(e)}"
-
-def check_shipping_status(order_id: str):
-    return f"Order {order_id} status: Processing (Mock API)."
+            for r in ddgs.text(query, max_results=2):
+                results_list.append(f"{r['title']}: {r['body'][:100]}")
+        return "Web: " + " | ".join(results_list) if results_list else "No web results found."
+    except:
+        return "Search failed."
