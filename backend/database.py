@@ -8,7 +8,8 @@ def get_db_connection():
 def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
-    # Existing Inventory Table
+    
+    # 1. Inventory Table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS inventory (
             name TEXT PRIMARY KEY,
@@ -16,7 +17,8 @@ def init_db():
             quantity INTEGER DEFAULT 1
         )
     ''')
-    # NEW: Work Tickets Table
+    
+    # 2. Work Tickets Table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS tickets (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -25,7 +27,8 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
-    # NEW: Reminders Table
+    
+    # 3. Reminders Table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS reminders (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -34,6 +37,7 @@ def init_db():
             status TEXT DEFAULT 'PENDING'
         )
     ''')
+    
     conn.commit()
     conn.close()
-    print("Database Structured: Inventory, Tickets, and Reminders are ready.")
+    print("Database Initialized: Inventory, Tickets, and Reminders ready.")
