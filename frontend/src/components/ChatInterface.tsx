@@ -5,38 +5,27 @@ export default function ChatInterface() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [micStatus, setMicStatus] = useState('OFF');
   const recognitionRef = useRef<any>(null);
-  const isStarted = useRef(false);
+
+  useEffect(() => {
+    initMic();
+  }, []);
 
   const initMic = () => {
     const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
-    if (!SpeechRecognition || isStarted.current) return;
+    if (!SpeechRecognition) return;
 
     const recognition = new SpeechRecognition();
     recognition.continuous = true;
     recognition.interimResults = false;
     recognition.lang = 'en-US';
 
-    recognition.onstart = () => { 
-      isStarted.current = true; 
-      setMicStatus('ON'); 
-    };
-
+    recognition.onstart = () => setMicStatus('ON');
     recognition.onresult = (event: any) => {
-      if (isProcessing) return;
       const transcript = event.results[event.results.length - 1][0].transcript;
-      const cleanText = transcript.trim().toLowerCase();
-      if (cleanText.length > 2) handleCommand(cleanText);
+      handleCommand(transcript.trim());
     };
-
     recognition.onend = () => {
-      isStarted.current = false;
-      setMicStatus('OFF');
-      // Auto-restart if we aren't currently waiting for a server response
-      if (!isProcessing) {
-        setTimeout(() => {
-          try { recognition.start(); } catch(e) {}
-        }, 300);
-      }
+      if (!isProcessing) recognition.start();
     };
 
     recognitionRef.current = recognition;
@@ -45,6 +34,11 @@ export default function ChatInterface() {
 
   const handleCommand = async (text: string) => {
     if (isProcessing) return;
+    
+    // UI Feedback: Only show the message if it has a trigger word
+    const triggers = ["hey shop", "assistant", "okay shop", "shop"];
+    if (!triggers.some(t => text.toLowerCase().startsWith(t))) return;
+
     setIsProcessing(true);
     setMessages(prev => [...prev, { sender: 'user', text }]);
 
@@ -62,7 +56,6 @@ export default function ChatInterface() {
         setIsProcessing(false);
       }
     } catch (err) {
-      console.error("Chat Error:", err);
       setIsProcessing(false);
     }
   };
@@ -70,47 +63,32 @@ export default function ChatInterface() {
   const speak = (text: string) => {
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
-    
-    utterance.onstart = () => {
-      if (recognitionRef.current) recognitionRef.current.stop();
-    };
-
+    utterance.onstart = () => recognitionRef.current?.stop();
     utterance.onend = () => {
       setIsProcessing(false);
-      if (recognitionRef.current && !isStarted.current) {
-        try { recognitionRef.current.start(); } catch(e) {}
-      }
+      try { recognitionRef.current?.start(); } catch(e) {}
     };
-
     window.speechSynthesis.speak(utterance);
   };
 
   return (
-    <div className="bg-slate-900 border-2 border-blue-500/20 rounded-3xl p-8 w-full max-w-2xl shadow-2xl text-white font-sans">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-xl font-bold text-blue-500 uppercase tracking-tighter">Shop OS</h1>
-          <p className={`text-[10px] ${isProcessing ? 'text-red-500 animate-pulse' : 'text-green-500'}`}>
-            {isProcessing ? 'PROCESSING...' : 'LISTENING'}
-          </p>
-        </div>
-        <button 
-          onClick={initMic} 
-          className={`px-4 py-2 rounded-xl text-[10px] font-black ${micStatus === 'ON' ? 'bg-green-500/10 text-green-500 border border-green-500' : 'bg-blue-600 animate-bounce'}`}
-        >
-          {micStatus === 'ON' ? 'MIC LIVE' : 'ACTIVATE MIC'}
-        </button>
+    <div className="bg-slate-900 border-2 border-blue-500/20 rounded-3xl p-8 w-full max-w-2xl shadow-2xl text-white">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-black text-blue-500 italic">SHOP OS</h1>
+        <div className={`h-3 w-3 rounded-full ${isProcessing ? 'bg-red-500 animate-ping' : 'bg-green-500'}`}></div>
       </div>
-      
-      <div className="h-80 overflow-y-auto space-y-4 mb-6 pr-2 custom-scrollbar">
+      <div className="h-96 overflow-y-auto space-y-4 mb-4 pr-2">
         {messages.map((m, i) => (
           <div key={i} className={`flex ${m.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[80%] p-3 rounded-2xl text-sm ${m.sender === 'user' ? 'bg-blue-600' : 'bg-slate-800 border border-slate-700'}`}>
+            <div className={`p-3 rounded-2xl text-sm ${m.sender === 'user' ? 'bg-blue-600' : 'bg-slate-800'}`}>
               {m.text}
             </div>
           </div>
         ))}
       </div>
+      <p className="text-[10px] text-slate-500 text-center uppercase tracking-widest">
+        {micStatus === 'ON' ? 'Listening for "Hey Shop"' : 'Mic Offline'}
+      </p>
     </div>
   );
 }
