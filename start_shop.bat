@@ -1,44 +1,23 @@
 @echo off
 SETLOCAL EnableDelayedExpansion
-
-:: Get the directory where this script is located
 set "ROOT_DIR=%~dp0"
 cd /d "%ROOT_DIR%"
 
-echo [1/4] Detecting Directory: %ROOT_DIR%
-
-:: 1. Start Ollama (Hidden)
-echo [2/4] Starting Ollama...
+:: 1. Start Ollama
 start /min "" ollama serve
 
-:: 2. Setup and Start Backend
-echo [3/4] Initializing Backend...
+:: 2. Backend (Corrected Path)
 cd /d "%ROOT_DIR%backend"
-if not exist "venv" (
-    echo Creating Python Virtual Environment...
-    python -m venv venv
-)
+if not exist "venv" python -m venv venv
 call venv\Scripts\activate
-echo Updating Backend Requirements...
 pip install -r requirements.txt --quiet
+start "ShopOS-Backend" cmd /k "python main.py"
 
-:: CRITICAL CHANGE: Use 'start' to run the backend in a NEW window
-echo Launching Backend Server...
-start "ShopOS-Backend-Server" cmd /k "venv\Scripts\activate && python main.py"
-
-:: 3. Setup and Start Frontend
-echo [4/4] Initializing Frontend...
+:: 3. Frontend (Corrected Path)
 cd /d "%ROOT_DIR%frontend"
-if not exist "node_modules" (
-    echo Installing Node Modules...
-    call npm install
-)
+if not exist "node_modules" call npm install
+start "ShopOS-Frontend" cmd /k "npm run dev"
 
-:: CRITICAL CHANGE: Use 'start' to run the frontend in a NEW window
-echo Launching Frontend Server...
-start "ShopOS-Frontend-Vite" cmd /k "npm run dev"
-
-:: 4. Final Launch
-echo Everything is launching. Waiting 8 seconds for servers to warm up...
+:: 4. Launch
 timeout /t 8
 start chrome http://localhost:5173
