@@ -7,6 +7,7 @@
 | **Remove Item** | remove, delete | "Shop remove the broken power supply" |
 | **Work Tickets** | ticket, list tickets | "Shop create a ticket to fix the front door lock" |
 | **Reminders** | remind, list reminders | "Shop remind me to call the vendor at 4 PM" |
+| **Calendar** | Add to calendar, add event to calendar | "Hey Shop, add client coming in at 12pm on friday the 16th of January" |
 **Note: You must say Hey Shop or Shop to activate the systems.**
 
 
