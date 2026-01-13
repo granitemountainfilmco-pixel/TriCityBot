@@ -13,13 +13,12 @@ export default function ChatInterface() {
     recognitionRef.current.continuous = true;
     
     recognitionRef.current.onresult = (event: any) => {
-      if (isProcessing) return;
-      const transcript = event.results[event.results.length - 1][0].transcript.trim().toLowerCase();
+      if (isProcessing) return; // Don't listen while AI is talking
+      const text = event.results[event.results.length - 1][0].transcript.trim().toLowerCase();
       
-      // Keywords that trigger the system
-      const triggers = ['add', 'check', 'research', 'remove', 'search', 'delete'];
-      if (triggers.some(t => transcript.startsWith(t))) {
-        handleCommand(transcript);
+      const commands = ['add', 'check', 'research', 'remove', 'search', 'delete', 'do we'];
+      if (commands.some(cmd => text.includes(cmd))) {
+        handleCommand(text);
       }
     };
 
@@ -40,10 +39,10 @@ export default function ChatInterface() {
       const data = await res.json();
       setMessages(prev => [...prev, { sender: 'bot', text: data.response }]);
 
-      // Robust Speech Synthesis
-      window.speechSynthesis.cancel();
+      // --- VOICE OUTPUT ---
+      window.speechSynthesis.cancel(); // Clear queue
       const utterance = new SpeechSynthesisUtterance(data.response);
-      utterance.onend = () => setIsProcessing(false);
+      utterance.onend = () => setIsProcessing(false); // Resume listening after speaking
       window.speechSynthesis.speak(utterance);
     } catch (err) {
       setIsProcessing(false);
@@ -51,12 +50,12 @@ export default function ChatInterface() {
   };
 
   return (
-    <div className="bg-slate-900 border-2 border-blue-500/20 rounded-3xl p-8 w-full max-w-2xl shadow-2xl">
+    <div className="bg-slate-900 border-2 border-blue-500/20 rounded-3xl p-8 w-full max-w-2xl shadow-2xl font-sans">
       <div className="flex items-center justify-between mb-8">
-        <h1 className="text-xl font-black text-blue-500 tracking-widest uppercase">TriCity Shop v2.0</h1>
-        <div className={`h-2 w-2 rounded-full ${isProcessing ? 'bg-yellow-500 animate-ping' : 'bg-green-500'}`} />
+        <h1 className="text-xl font-bold text-blue-500 tracking-widest">TRI-CITY ASSISTANT</h1>
+        <div className={`h-3 w-3 rounded-full ${isProcessing ? 'bg-yellow-500 animate-pulse' : 'bg-green-500'}`} />
       </div>
-      <div className="h-96 overflow-y-auto space-y-4 mb-4 pr-2">
+      <div className="h-96 overflow-y-auto space-y-4 mb-6 pr-2">
         {messages.map((m, i) => (
           <div key={i} className={`flex ${m.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`p-4 rounded-2xl text-sm ${m.sender === 'user' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-300'}`}>
@@ -65,9 +64,9 @@ export default function ChatInterface() {
           </div>
         ))}
       </div>
-      <div className="text-[10px] text-slate-600 font-bold uppercase text-center tracking-widest">
-        System Listening for Add / Remove / Research
-      </div>
+      <p className="text-[10px] text-slate-500 text-center uppercase tracking-widest">
+        Voice Commands: Add | Remove | Check | Research
+      </p>
     </div>
   );
 }
