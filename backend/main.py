@@ -3,15 +3,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import ollama
 import tools
+from database import init_db  # Import the fix
 
 app = FastAPI()
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Initialize the database table before the server accepts requests
+init_db()
 
 class Query(BaseModel):
     text: str
@@ -19,47 +17,35 @@ class Query(BaseModel):
 @app.post("/api/chat")
 async def chat(query: Query):
     user_input = query.text.lower()
-    
-    inventory_keywords = ['add', 'remove', 'delete', 'check', 'stock', 'inventory', 'have']
-    
+    inv_keys = ['add', 'remove', 'delete', 'check', 'stock', 'inventory', 'have']
     try:
-        if any(k in user_input for k in inventory_keywords):
-            # PASS: Inventory Extraction
+        if any(k in user_input for k in inv_keys):
             response = ollama.chat(
-                model='llama3.1',
+                model='llama3.1', 
                 messages=[
-                    {'role': 'system', 'content': 'Extract product and price. If merged like "rtx5090500", split into Name="RTX 5090" and Price=500.'},
+                    {'role': 'system', 'content': 'Split merged product/price like "rtx5090500" into Name="RTX 5090", Price=500.'}, 
                     {'role': 'user', 'content': query.text}
-                ],
+                ], 
                 tools=[tools.add_to_inventory, tools.check_inventory, tools.remove_from_inventory]
             )
-            
             if response.message.tool_calls:
-                results = [getattr(tools, t.function.name)(**t.function.arguments) for t in response.message.tool_calls]
-                return {"response": " ".join(results)}
+                res = [getattr(tools, t.function.name)(**t.function.arguments) for t in response.message.tool_calls]
+                return {"response": " ".join(res)}
             return {"response": response.message.content}
-
         else:
-            # PASS: Free AI Research Summary
-            # 1. Keyword Pass
-            kw_res = ollama.generate(model='llama3.1', prompt=f"Convert to 3 search keywords: '{query.text}'. Output ONLY keywords.")
-            keywords = kw_res['response'].strip()
-            
-            # 2. Web Pass
-            web_data = tools.web_research(keywords)
-            
-            # 3. Summarization Pass
+            kw = ollama.generate(model='llama3.1', prompt=f"Keywords for: '{query.text}'")['response'].strip()
+            data = tools.web_research(kw)
             summary = ollama.chat(
-                model='llama3.1',
+                model='llama3.1', 
                 messages=[
-                    {'role': 'system', 'content': 'You are a shop assistant. Summarize the web data into one short, helpful sentence.'},
-                    {'role': 'user', 'content': f"Web Data: {web_data}\n\nUser Question: {query.text}"}
+                    {'role': 'system', 'content': 'Summarize research in one short sentence.'}, 
+                    {'role': 'user', 'content': f"Data: {data}\nQ: {query.text}"}
                 ]
             )
             return {"response": summary.message.content}
-
     except Exception as e:
-        return {"response": "I encountered a processing error."}
+        print(f"Error: {e}")
+        return {"response": "Processing error."}
 
 if __name__ == "__main__":
     import uvicorn
