@@ -1,9 +1,8 @@
+import sqlite3
 from database import get_db_connection
 from duckduckgo_search import DDGS
 
-# --- INVENTORY TOOLS ---
 def add_to_inventory(name: str, price: float, quantity: int = 1, notes: str = ""):
-    """Adds an item to inventory. Updates quantity if it exists."""
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -14,55 +13,45 @@ def add_to_inventory(name: str, price: float, quantity: int = 1, notes: str = ""
         )
         conn.commit()
         conn.close()
-        return f"✅ Success: Added {quantity}x {name} at ${price}."
+        return f"Successfully added {quantity}x {name} at ${price}."
     except Exception as e:
-        return f"❌ Error adding item: {str(e)}"
+        return f"Error adding to inventory: {str(e)}"
 
 def remove_from_inventory(name: str):
-    """Removes an item completely from the database."""
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("DELETE FROM inventory WHERE name = ?", (name,))
-    if cursor.rowcount > 0:
-        conn.commit()
-        msg = f"🗑️ Removed {name} from inventory."
-    else:
-        msg = f"⚠️ Item '{name}' not found."
+    rowcount = cursor.rowcount
+    conn.commit()
     conn.close()
-    return msg
+    return f"Removed {name} from inventory." if rowcount > 0 else f"Item {name} not found."
 
 def check_inventory(query: str):
-    """Searches for items by name."""
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM inventory WHERE name LIKE ?", (f"%{query}%",))
     items = cursor.fetchall()
     conn.close()
-    
-    if not items:
-        return "⚠️ No items found matching that name."
-    
-    response = "📦 **Inventory Search:**\n"
-    for item in items:
-        response += f"- **{item['name']}**: ${item['price']} (Qty: {item['quantity']}) | *{item['notes']}*\n"
-    return response
+    if not items: return "No matching items in stock."
+    res = "Inventory found:\n"
+    for i in items:
+        res += f"- {i['name']}: ${i['price']} (Qty: {i['quantity']})\n"
+    return res
 
-# --- RESEARCH TOOL ---
 def web_research(query: str):
-    """Searches the web using DuckDuckGo (No API Key needed)."""
+    """Robust web search using DuckDuckGo context manager."""
     try:
-        print(f"🔎 Researching: {query}")
-        results = DDGS().text(query, max_results=2)
-        if not results:
-            return "No results found."
+        print(f"Searching web for: {query}")
+        results_list = []
+        with DDGS() as ddgs:
+            for r in ddgs.text(query, max_results=3):
+                results_list.append(f"{r['title']}: {r['body'][:150]}")
         
-        summary = "🌐 **Web Search Results:**\n"
-        for res in results:
-            summary += f"- [{res['title']}]({res['href']}): {res['body'][:200]}...\n"
-        return summary
+        if not results_list:
+            return "Search returned no results. Try simplifying the query."
+        return "Web Results:\n" + "\n".join(results_list)
     except Exception as e:
-        return f"Research failed: {e}"
+        return f"Search error: {str(e)}"
 
-# --- STUBS ---
 def check_shipping_status(order_id: str):
-    return f"🚚 [MOCK] Order #{order_id} is 'Out for Delivery'."
+    return f"Order {order_id} status: Processing (Mock API)."
