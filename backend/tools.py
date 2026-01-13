@@ -24,12 +24,24 @@ def add_to_inventory(name: str, price: str, quantity: int = 1):
         return f"Data Error: Could not process price '{price}'."
 
 def check_inventory(query: str):
-    search_term = str(query).upper().replace("CHECK ", "").replace("INVENTORY ", "").strip()
+    # Fix: Remove common filler but keep the core product name intact
+    search_term = str(query).upper()
+    for word in ["CHECK", "INVENTORY", "FOR", "SEARCH"]:
+        search_term = search_term.replace(word, "")
+    search_term = search_term.strip()
+    
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM inventory WHERE name LIKE ?", (f"%{search_term}%",))
+    
+    # Use a wildcards on BOTH sides and handle potential missing spaces
+    # This finds "RTX 5090" even if the user says "RTX5090"
+    spaced_term = search_term.replace("RTX", "RTX ")
+    cursor.execute("SELECT * FROM inventory WHERE name LIKE ? OR name LIKE ?", 
+                   (f"%{search_term}%", f"%{spaced_term}%"))
+    
     items = cursor.fetchall()
     conn.close()
+    
     if not items: return f"I found nothing for {search_term}."
     return "Stock: " + ", ".join([f"{i['name']} (${i['price']})" for i in items])
 
