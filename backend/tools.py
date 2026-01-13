@@ -80,6 +80,18 @@ def create_reminder(msg, time):
     conn.close()
     return f"Reminder logged: '{msg}' for {time}."
 
+def list_reminders():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    # Assuming 'reminders' table exists based on your create_reminder function
+    cursor.execute("SELECT message, remind_at FROM reminders ORDER BY remind_at ASC")
+    items = cursor.fetchall()
+    conn.close()
+    if not items: 
+        return "You have no scheduled reminders."
+    
+    return "Upcoming Reminders:\n" + "\n".join([f"- {i['message']} (at {i['remind_at']})" for i in items])
+
 def web_research(query):
     try:
         response = tavily.search(query=query, max_results=3)
