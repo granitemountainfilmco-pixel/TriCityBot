@@ -3,3 +3,6 @@ uvicorn
 ollama
 pydantic
 tavily-python
+google-api-python-client
+google-auth-oauthlib
+google-auth-httplib2
