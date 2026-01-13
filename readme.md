@@ -1,6 +1,8 @@
 **Backend**
 Ensure Ollama is downloaded from ollama.com
 
+Ensure nodejs is downloaded
+
 Open your terminal and run: ollama pull llama3.1
 
 Keep the terminal open or make sure ollama is running in the background
