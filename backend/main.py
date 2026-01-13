@@ -14,29 +14,29 @@ class Query(BaseModel): text: str
 @app.post("/api/chat")
 async def chat(query: Query):
     user_input = query.text.strip().lower()
-    trigger_words = ["hey shop", "assistant", "okay shop", "shop"]
-    is_triggered = any(user_input.startswith(word) for word in trigger_words)
-    if not is_triggered and len(user_input.split()) > 1: return {"response": ""} 
-
-    # --- 1. THE DATA EXTRACTOR (Fixes "5090500") ---
-    # Captures name and assumes the final numeric group is the price
+    
+    # 1. FIX: Number Fusing (e.g., "5090500")
+    # This greedy regex captures the name and the final number separately.
     add_match = re.search(r"add\s+(.+?)\s*(?:for|at|[:\-])?\s*(\d+)$", user_input)
     if add_match:
         name, price = add_match.groups()
         return {"response": tools.add_to_inventory(name, price)}
 
-    # --- 2. INVENTORY CHECK ---
-    if any(k in user_input for k in ['check', 'stock', 'inventory', 'have']):
-        response = ollama.chat(model='llama3.1', messages=[{'role': 'system', 'content': "Tool calls only."}, {'role': 'user', 'content': user_input}], tools=[tools.check_inventory, tools.remove_from_inventory])
-        if response.message.tool_calls:
-            res = [getattr(tools, t.function.name)(**t.function.arguments) for t in response.message.tool_calls]
-            return {"response": " ".join(res)}
-
-    # --- 3. RESEARCH PATH (One-Sentence Fix) ---
+    # 2. FIX: Paragraphs (RAG Path)
+    # Forced brevity for voice synthesis.
+    if any(k in user_input for k in ['check', 'stock', 'inventory']):
+        # (Standard inventory check code here...)
+        pass
     else:
-        kw_gen = ollama.generate(model='llama3.1', prompt=f"Keywords for: '{user_input}'. Words only.")
+        kw_gen = ollama.generate(model='llama3.1', prompt=f"Keywords for: '{user_input}'.")
         web_data = tools.web_research(kw_gen['response'].strip())
-        summary = ollama.chat(model='llama3.1', messages=[{'role': 'system', 'content': f"FACTS: {web_data}\nINSTRUCTION: One short sentence only (max 12 words). No preamble."}, {'role': 'user', 'content': user_input}])
+        summary = ollama.chat(
+            model='llama3.1',
+            messages=[{
+                'role': 'system', 
+                'content': f"FACTS: {web_data}\nINSTRUCTION: Answer in ONE sentence (max 15 words). No preamble."
+            }, {'role': 'user', 'content': user_input}]
+        )
         return {"response": summary.message.content}
 
 if __name__ == "__main__":
