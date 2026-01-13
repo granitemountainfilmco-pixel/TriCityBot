@@ -18,12 +18,11 @@ class ChatRequest(BaseModel):
 def route_command(user_input: str):
     user_input = user_input.lower().strip()
 
-    # 1. LISTING LOGIC (Priority to avoid "Ticket Creation" loop)
+    # 1. LISTING LOGIC (Priority)
     if any(k in user_input for k in ["list", "what are", "show me", "check"]):
         if "ticket" in user_input:
             return tools.list_tickets()
         if any(k in user_input for k in ["inventory", "stock", "have"]):
-            # Extract product name if they are checking for a specific item
             kw = ollama.generate(model='llama3.1', prompt=f"Extract product name from: '{user_input}'. Output only the name.")
             name = kw['response'].strip()
             if name and name != "none":
@@ -40,15 +39,20 @@ def route_command(user_input: str):
         res = ollama.generate(model='llama3.1', prompt=f"Extract the core work task from: '{user_input}'. Output ONLY the task.")
         return tools.create_ticket(res['response'].strip())
 
-    # 4. REMINDER LOGIC
+    # 4. REMINDER LOGIC (RESTORED)
     if "remind" in user_input:
         res = ollama.chat(model='llama3.1', messages=[
-            {'role': 'system', 'content': "Extract 'task' and 'time' from input. Format: TASK | TIME."},
+            {'role': 'system', 'content': "Extract 'task' and 'time' from input. Format: TASK | TIME. If no time, use 'ASAP'."},
             {'role': 'user', 'content': user_input}
         ])
-        parts = res.message.content.split("|")
-        task = parts[0].strip()
-        time = parts[1].strip() if len(parts) > 1 else "ASAP"
+        # Splits the AI response into Task and Time
+        if "|" in res.message.content:
+            parts = res.message.content.split("|")
+            task = parts[0].strip()
+            time = parts[1].strip()
+        else:
+            task = res.message.content.strip()
+            time = "ASAP"
         return tools.create_reminder(task, time)
 
     # 5. ADD LOGIC (Greedy Regex)
@@ -78,14 +82,20 @@ def route_command(user_input: str):
 async def chat(req: ChatRequest):
     msg = req.text.lower().strip()
     trigger_words = ["hey shop", "okay shop", "shop"]
+    
     remainder = None
     for w in trigger_words:
         if msg.startswith(w):
             remainder = msg[len(w):].strip()
             break
             
-    if not remainder: return {"response": None}
-    return {"response": route_command(remainder)}
+    # If no wake word is found, we return an empty response string.
+    # This prevents the frontend from "hanging" while waiting for a reply.
+    if not remainder:
+        return {"response": ""}
+
+    response = route_command(remainder)
+    return {"response": response}
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
