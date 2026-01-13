@@ -9,7 +9,23 @@ tavily = TavilyClient(api_key=TAVILY_API_KEY)
 def get_db_connection():
     conn = sqlite3.connect('shop.db')
     conn.row_factory = sqlite3.Row
-    return conn
+    return conn\
+
+def list_inventory():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT name, price, quantity FROM inventory")
+    items = cursor.fetchall()
+    conn.close()
+
+    if not items:
+        return "Inventory is empty."
+
+    return "Inventory:\n" + "\n".join(
+        f"{i['name']} (${i['price']:,.2f}) x{i['quantity']}"
+        for i in items
+    )
+
 
 # --- INVENTORY TOOLS ---
 def add_to_inventory(name: str, price: str, quantity: int = 1):
