@@ -6,33 +6,31 @@ echo [OLLAMA] Cleaning up background processes...
 taskkill /f /im ollama.exe >nul 2>&1
 timeout /t 2 /nobreak >nul
 
-:: 2. Start Ollama Server
+:: 2. Start Ollama Server (Visible for Debugging)
 echo [OLLAMA] Starting Server...
-:: 'start' runs it in a separate window so it stays open
 start "OLLAMA-SERVER" cmd /c "ollama serve"
+timeout /t 5 /nobreak
 
-:: 3. Wait for API to be ready (The "Pinger")
-echo [OLLAMA] Waiting for port 11434 to wake up...
-:wait_loop
-curl -s http://localhost:11434 >nul 2>&1
-if %errorlevel% neq 0 (
-    timeout /t 1 >nul
-    goto wait_loop
-)
-echo [OLLAMA] API is online!
-
-:: 4. Verify Model
+:: 3. Ensure Model Exists (Prevents backend hanging)
 echo [OLLAMA] Verifying llama3.1...
 ollama pull llama3.1
 
-:: 5. Launch Backend
+:: 4. Backend Setup
+echo [BACKEND] Starting...
 cd /d "%ROOT_DIR%backend"
-call venv\Scripts\activate
-start "ShopOS-Backend" cmd /k "python main.py"
+if not exist "venv" (
+    python -m venv venv
+)
+start "ShopOS-Backend" cmd /k "call venv\Scripts\activate && pip install -r requirements.txt --quiet && python main.py"
 
-:: 6. Launch Frontend
+:: 5. Frontend Setup
+echo [FRONTEND] Starting...
 cd /d "%ROOT_DIR%frontend"
+if not exist "node_modules" (
+    call npm install
+)
 start "ShopOS-Frontend" cmd /k "npm run dev -- --force"
 
-timeout /t 5
+:: 6. Launch Browser
+timeout /t 4
 start chrome http://localhost:5173
