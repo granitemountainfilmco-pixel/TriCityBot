@@ -1,3 +1,11 @@
+**Operation instructions**
+
+Command Type	    Trigger Keywords	                              Example Voice Command
+Add Item	        add	                                            "Add an RTX 4090 for 1600 dollars."
+Check Stock	      check, inventory, stock, have, list	            "Check if we have any thermal paste."
+Remove Item	      remove, delete	                                "Remove the broken power supply."
+
+
 **Easy way**
 Run the start_shop script for your Operating System (.bat for windows, .sh for Ubuntu, other distros not supported)
 
