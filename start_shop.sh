@@ -1,42 +1,47 @@
 #!/bin/bash
 ROOT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-cd "$ROOT_DIR"
 
-install_component() {
-    read -p "$1 is missing. Would you like to install it? (y/n): " confirm
-    if [[ $confirm == [yY] ]]; then
-        return 0
-    else
-        return 1
+# Function to check and install dependencies
+check_install() {
+    if ! command -v $1 &> /dev/null; then
+        read -p "$1 is missing. Install it? (y/n): " confirm
+        if [[ $confirm == [yY] ]]; then
+            sudo apt update
+            sudo apt install -y $2
+        else
+            echo "Cannot continue without $1."
+            exit 1
+        fi
     fi
 }
 
-# 1. Check/Install Docker
-if ! command -v docker &> /dev/null; then
-    if install_component "Docker"; then
-        echo "[INSTALL] Installing Docker..."
-        curl -fsSL https://get.docker.com -o get-docker.sh
-        sudo sh get-docker.sh
-        sudo usermod -aG docker $USER
-        echo "Please log out and log back in for Docker permissions to take effect."
-    else
-        exit 1
-    fi
-fi
+# 1. Install System Basics
+check_install "python3" "python3 python3-venv python3-pip"
+check_install "node" "nodejs npm"
+check_install "curl" "curl"
 
 # 2. Check/Install Ollama
 if ! command -v ollama &> /dev/null; then
-    if install_component "Ollama"; then
-        echo "[INSTALL] Installing Ollama..."
+    read -p "Ollama missing. Install it? (y/n): " confirm
+    if [[ $confirm == [yY] ]]; then
         curl -fsSL https://ollama.com/install.sh | sh
     fi
 fi
 
-# 3. Fire up the containers
-echo "[DOCKER] Building and starting ShopOS..."
-docker compose up --build -d
+# 3. Setup Backend
+echo "[BACKEND] Preparing environment..."
+cd "$ROOT_DIR/backend"
+if [ ! -d "venv" ]; then python3 -m venv venv; fi
+source venv/bin/activate
+pip install -r requirements.txt --quiet
+gnome-terminal --title="ShopOS-Backend" -- bash -c "source venv/bin/activate; python3 main.py; exec bash" &
 
-# 4. Launch
-echo "Waiting for services..."
-sleep 5
+# 4. Setup Frontend
+echo "[FRONTEND] Preparing Node modules..."
+cd "$ROOT_DIR/frontend"
+if [ ! -d "node_modules" ]; then npm install; fi
+gnome-terminal --title="ShopOS-Frontend" -- bash -c "npm run dev -- --force; exec bash" &
+
+echo "Launching ShopOS..."
+sleep 8
 xdg-open http://localhost:5173
