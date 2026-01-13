@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
+TAVILY_API_KEY = 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
 tavily = TavilyClient(api_key=TAVILY_API_KEY)
 
 # --- INVENTORY ---
