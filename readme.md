@@ -26,7 +26,8 @@ Keep the terminal open or make sure ollama is running in the background
 
 In a new terminal window, navigate to the main folder of the program, than
 
-**For Windows, Run:** 
+**For Windows, Run:**  
+
 ` cd backend `  
 
 ` python -m venv venv `  
@@ -38,7 +39,8 @@ In a new terminal window, navigate to the main folder of the program, than
 ` python main.py `  
 
 
- **For Ubuntu, Run:**
+ **For Ubuntu, Run:**  
+ 
 ` cd backend `  
 
 ` python3 -m venv venv `  
@@ -50,7 +52,8 @@ In a new terminal window, navigate to the main folder of the program, than
 ` python3 main.py `
 
 **Frontend**
-Open a second terminal and navigate to the main folder of the program, than run:
+Open a second terminal and navigate to the main folder of the program, than run:  
+
 ` cd frontend `  
 
 ` npm install `  
