@@ -1,13 +1,15 @@
 import sqlite3
-from database import get_db_connection
-from duckduckgo_search import DDGS
+from googlesearch import search as gsearch
+
+def get_db_connection():
+    conn = sqlite3.connect('shop.db')
+    conn.row_factory = sqlite3.Row
+    return conn
 
 def add_to_inventory(name: str, price: float, quantity: int = 1):
     try:
-        # Objective Fix: Force price to float and clean the product name
         clean_price = float(price)
         clean_name = str(name).strip().upper()
-
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute(
@@ -17,7 +19,7 @@ def add_to_inventory(name: str, price: float, quantity: int = 1):
         )
         conn.commit()
         conn.close()
-        return f"Confirmed. {clean_name} logged at ${clean_price:.2f}."
+        return f"Logged {clean_name} at ${clean_price:.2f}."
     except Exception as e:
         return f"Database error: {str(e)}"
 
@@ -29,7 +31,7 @@ def remove_from_inventory(name: str):
         count = cursor.rowcount
         conn.commit()
         conn.close()
-        return f"Removed {name}." if count > 0 else f"I couldn't find {name}."
+        return f"Removed {name}." if count > 0 else f"Could not find {name}."
     except Exception as e:
         return f"Error: {str(e)}"
 
@@ -41,19 +43,20 @@ def check_inventory(query: str):
         items = cursor.fetchall()
         conn.close()
         if not items: return f"Nothing found for {query}."
-        res = "Inventory: "
-        for i in items:
-            res += f"{i['name']} (${i['price']}) Qty: {i['quantity']}. "
-        return res
+        return "Stock: " + ", ".join([f"{i['name']} (${i['price']}) x{i['quantity']}" for i in items])
     except Exception as e:
         return f"DB Error: {str(e)}"
 
 def web_research(query: str):
+    """The 'Better Way': Uses google-search-python for higher reliability."""
     try:
+        print(f"Searching web for: {query}")
         results = []
-        with DDGS() as ddgs:
-            for r in ddgs.text(query, max_results=3):
-                results.append(f"Source: {r['title']}\nSnippet: {r['body']}")
-        return "\n---\n".join(results) if results else "No online data found."
+        # num_results=5 provides enough context for the AI summarizer
+        for result in gsearch(query, num_results=5, advanced=True):
+            results.append(f"Title: {result.title}\nInfo: {result.description}")
+        
+        return "\n---\n".join(results) if results else "No data found."
     except Exception as e:
-        return f"Search Error: {str(e)}"
+        print(f"Search failed: {e}")
+        return "The search engine is currently blocking the request."
