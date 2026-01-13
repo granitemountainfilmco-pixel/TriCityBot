@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.pyc
+venv/
+shop.db
+
+# Node / React
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Editor
+.vscode/
+.idea/
+.DS_Store
