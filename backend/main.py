@@ -10,7 +10,6 @@ from database import init_db
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-# Ensure DB is ready on startup
 init_db()
 
 class ChatRequest(BaseModel):
@@ -19,21 +18,32 @@ class ChatRequest(BaseModel):
 def route_command(user_input: str):
     user_input = user_input.lower().strip()
 
-    # 1. REMOVAL LOGIC (Highest Priority)
+    # 1. LISTING LOGIC (Priority to avoid "Ticket Creation" loop)
+    if any(k in user_input for k in ["list", "what are", "show me", "check"]):
+        if "ticket" in user_input:
+            return tools.list_tickets()
+        if any(k in user_input for k in ["inventory", "stock", "have"]):
+            # Extract product name if they are checking for a specific item
+            kw = ollama.generate(model='llama3.1', prompt=f"Extract product name from: '{user_input}'. Output only the name.")
+            name = kw['response'].strip()
+            if name and name != "none":
+                return tools.check_inventory(name)
+            return tools.list_inventory()
+
+    # 2. REMOVAL LOGIC
     if any(k in user_input for k in ["remove", "delete"]):
-        # Remove trigger word and "the" to get the clean item name
         name = user_input.replace("remove", "").replace("delete", "").replace("the", "").strip()
         return tools.remove_from_inventory(name)
 
-    # 2. TICKET LOGIC
+    # 3. TICKET LOGIC
     if "ticket" in user_input:
         res = ollama.generate(model='llama3.1', prompt=f"Extract the core work task from: '{user_input}'. Output ONLY the task.")
         return tools.create_ticket(res['response'].strip())
 
-    # 3. REMINDER LOGIC
+    # 4. REMINDER LOGIC
     if "remind" in user_input:
         res = ollama.chat(model='llama3.1', messages=[
-            {'role': 'system', 'content': "Extract 'task' and 'time' from input. Format: TASK | TIME. Example: 'fix sink | 5pm'"},
+            {'role': 'system', 'content': "Extract 'task' and 'time' from input. Format: TASK | TIME."},
             {'role': 'user', 'content': user_input}
         ])
         parts = res.message.content.split("|")
@@ -41,22 +51,13 @@ def route_command(user_input: str):
         time = parts[1].strip() if len(parts) > 1 else "ASAP"
         return tools.create_reminder(task, time)
 
-    # 4. ADD LOGIC (Greedy Regex)
+    # 5. ADD LOGIC (Greedy Regex)
     add_match = re.search(r"add\s+(.*)\s+(?:for|at|is)?\s*[\$\s]*(\d+(?:\.\d{2})?)(?:\s+(?:qty|x)?\s*(\d+))?$", user_input)
     if add_match:
         name, price, qty = add_match.groups()
         return tools.add_to_inventory(name, price, int(qty) if qty else 1)
 
-    # 5. LISTING/CHECKING
-    if "list" in user_input:
-        if "ticket" in user_input: return tools.list_tickets()
-        return tools.list_inventory()
-    
-    if any(k in user_input for k in ["check", "stock", "have"]):
-        kw = ollama.generate(model='llama3.1', prompt=f"Extract product name from: '{user_input}'.")
-        return tools.check_inventory(kw['response'].strip())
-
-    # 6. RESEARCH (3-Sentence Limit)
+    # 6. RESEARCH
     if any(k in user_input for k in ["research", "find", "price"]):
         topic_gen = ollama.generate(model='llama3.1', prompt=f"Extract product name from: '{user_input}'.")
         query = topic_gen['response'].strip()
@@ -71,7 +72,7 @@ def route_command(user_input: str):
         )
         return summary.message.content
 
-    return "Command not recognized. Try 'add RTX 5090 2500' or 'remove RTX 5090'."
+    return "Command not recognized. Try 'add RTX 5090 2500' or 'make a ticket for the broken gpu'."
 
 @app.post("/api/chat")
 async def chat(req: ChatRequest):
