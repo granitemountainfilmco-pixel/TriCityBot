@@ -1,13 +1,10 @@
 from database import get_db_connection
-from googlesearch import search as gsearch
+from duckduckgo_search import DDGS
 
 def add_to_inventory(name: str, price: str, quantity: int = 1):
     try:
-        # SCRUB: Remove commas, $, and spaces from the price string
         clean_p = str(price).replace(",", "").replace("$", "").strip()
         final_price = float(clean_p)
-        
-        # SCRUB: Standardize name and remove accidental AI 'action' words
         clean_name = str(name).upper().replace("ADD ", "").replace("CHECK ", "").strip()
 
         conn = get_db_connection()
@@ -24,24 +21,15 @@ def add_to_inventory(name: str, price: str, quantity: int = 1):
         return f"Data Error: Could not process price '{price}'."
 
 def check_inventory(query: str):
-    # Fix: Remove common filler but keep the core product name intact
-    search_term = str(query).upper()
-    for word in ["CHECK", "INVENTORY", "FOR", "SEARCH"]:
-        search_term = search_term.replace(word, "")
-    search_term = search_term.strip()
-    
+    search_term = str(query).upper().replace("CHECK ", "").replace("INVENTORY ", "").strip()
     conn = get_db_connection()
     cursor = conn.cursor()
-    
-    # Use a wildcards on BOTH sides and handle potential missing spaces
-    # This finds "RTX 5090" even if the user says "RTX5090"
-    spaced_term = search_term.replace("RTX", "RTX ")
+    # Fuzzy matching handles RTX5090 vs RTX 5090
+    spaced_version = search_term.replace("RTX", "RTX ")
     cursor.execute("SELECT * FROM inventory WHERE name LIKE ? OR name LIKE ?", 
-                   (f"%{search_term}%", f"%{spaced_term}%"))
-    
+                   (f"%{search_term}%", f"%{spaced_version}%"))
     items = cursor.fetchall()
     conn.close()
-    
     if not items: return f"I found nothing for {search_term}."
     return "Stock: " + ", ".join([f"{i['name']} (${i['price']})" for i in items])
 
@@ -57,6 +45,14 @@ def remove_from_inventory(name: str):
 
 def web_research(query: str):
     try:
-        results = [f"Title: {r.title}\nInfo: {r.description}" for r in gsearch(query, num_results=3, advanced=True)]
+        print(f"Fetching web data for: {query}")
+        results = []
+        with DDGS() as ddgs:
+            # We fetch 3 results to give the AI context
+            for r in ddgs.text(query, region='wt-wt', safesearch='off'):
+                results.append(f"Source: {r['title']}\nInfo: {r['body']}")
+                if len(results) >= 3: break
         return "\n---\n".join(results) if results else "No data."
-    except: return "Research blocked by search engine."
+    except Exception as e:
+        print(f"Search Error: {e}")
+        return "The web search tool is temporarily unavailable."
