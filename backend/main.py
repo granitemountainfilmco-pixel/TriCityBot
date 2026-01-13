@@ -116,7 +116,7 @@ def route_command(text: str):
 # API ENDPOINT
 # =========================
 
-@app.post("/chat")
+@app.post("/api/chat")
 async def chat(req: ChatRequest):
     remainder = extract_after_wake(req.message)
     if remainder is None or not remainder:
