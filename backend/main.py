@@ -77,6 +77,9 @@ def route_command(user_input: str):
             # Strip '#' if AI or user included it for the ID
             clean_id = subject.replace('#', '')
             return tools.delete_ticket(clean_id)
+
+        elif action == "CALENDAR":
+            return tools.add_calendar_event(subject, value)
             
         elif action == "REMIND":
             return tools.create_reminder(subject, value)
