@@ -13,9 +13,18 @@ def add_to_inventory(name: str, price: float, quantity: int = 1, notes: str = ""
         )
         conn.commit()
         conn.close()
-        return f"Successfully added {name} at ${price}."
+        return f"Added {name} to stock."
     except Exception as e:
-        return f"Database error: {str(e)}"
+        return f"DB Error: {str(e)}"
+
+def remove_from_inventory(name: str):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM inventory WHERE name = ?", (name,))
+    count = cursor.rowcount
+    conn.commit()
+    conn.close()
+    return f"Removed {name}." if count > 0 else f"{name} not found."
 
 def check_inventory(query: str):
     conn = get_db_connection()
@@ -23,31 +32,16 @@ def check_inventory(query: str):
     cursor.execute("SELECT * FROM inventory WHERE name LIKE ?", (f"%{query}%",))
     items = cursor.fetchall()
     conn.close()
-    if not items: return f"Nothing found for {query}."
-    res = "Stock found: "
-    for i in items:
-        res += f"{i['name']} (${i['price']}). "
-    return res
+    if not items: return "Out of stock."
+    return "Found: " + ", ".join([f"{i['name']} (${i['price']})" for i in items])
 
-def remove_from_inventory(name: str):
-    """Removes an item completely from the database."""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM inventory WHERE name = ?", (name,))
-    rowcount = cursor.rowcount
-    conn.commit()
-    conn.close()
-    if rowcount > 0:
-        return f"Successfully removed {name} from the inventory."
-    else:
-        return f"Could not find {name} in the inventory."
-        
 def web_research(query: str):
     try:
-        results_list = []
         with DDGS() as ddgs:
-            for r in ddgs.text(query, max_results=2):
-                results_list.append(f"{r['title']}: {r['body'][:100]}")
-        return "Web: " + " | ".join(results_list) if results_list else "No web results found."
+            results = [r['body'] for r in ddgs.text(query, max_results=2)]
+        return " | ".join(results) if results else "No results found."
     except:
         return "Search failed."
+
+def check_shipping_status(order_id: str):
+    return f"Order {order_id} is in transit."
