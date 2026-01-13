@@ -4,22 +4,22 @@ set "ROOT_DIR=%~dp0"
 :: 1. Start Ollama
 start /min "" ollama serve
 
-:: 2. Backend Setup
+:: 2. Setup Backend
 echo [BACKEND] Starting...
 cd /d "%ROOT_DIR%backend"
-if not exist "venv" python -m venv venv
 call venv\Scripts\activate
 pip install -r requirements.txt --quiet
 start "ShopOS-Backend" cmd /k "venv\Scripts\activate && python main.py"
 
-:: 3. Frontend Setup
+:: 3. Setup Frontend
 echo [FRONTEND] Starting...
 cd /d "%ROOT_DIR%frontend"
-if not exist "node_modules" call npm install
-:: Clear old vite cache to fix the blank screen
+:: FIXED: Wipe the old cache which causes the blank screen
 if exist "node_modules\.vite" rmdir /s /q "node_modules\.vite"
+if not exist "node_modules" call npm install
+:: Launch from the frontend folder specifically
 start "ShopOS-Frontend" cmd /k "npm run dev -- --force"
 
-:: 4. Launch
+:: 4. Launch Browser
 timeout /t 8
 start chrome http://localhost:5173
