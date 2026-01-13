@@ -1,4 +1,5 @@
 import re
+import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -34,7 +35,6 @@ VALID_COMMANDS = {"add", "remove", "check", "list", "research"}
 class ChatRequest(BaseModel):
     message: str
 
-
 # =========================
 # HELPERS
 # =========================
@@ -69,7 +69,6 @@ def parse_add_args(args):
 
     return name, price, qty
 
-
 # =========================
 # COMMAND ROUTER
 # =========================
@@ -83,7 +82,7 @@ def route_command(text: str):
     args = parts[1:]
 
     if cmd not in VALID_COMMANDS:
-        return None  # invalid → ignore silently
+        return None
 
     if cmd == "add":
         parsed = parse_add_args(args)
@@ -113,23 +112,22 @@ def route_command(text: str):
             return "Usage: hey shop research <query>"
         return web_research(" ".join(args))
 
-
 # =========================
 # API ENDPOINT
 # =========================
 
 @app.post("/chat")
 async def chat(req: ChatRequest):
-    # Wake-word gate
     remainder = extract_after_wake(req.message)
-    if remainder is None:
-        return {"response": None}  # ignore normal conversation
-
-    if not remainder:
-        return {"response": None}  # wake word only
+    if remainder is None or not remainder:
+        return {"response": None}
 
     response = route_command(remainder)
     return {"response": response}
+
+# =========================
+# ENTRY POINT (THIS WAS MISSING)
+# =========================
 
 if __name__ == "__main__":
     uvicorn.run(
