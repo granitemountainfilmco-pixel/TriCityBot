@@ -12,48 +12,33 @@ class Query(BaseModel): text: str
 
 @app.post("/api/chat")
 async def chat(query: Query):
-    user_input = query.text.lower()
-    
-    # 1. Clean phonetic errors before AI sees them
-    user_input = user_input.replace("or tx", "rtx").replace("forty ninety", "4090").replace("fifty ninety", "5090")
+    # PHONETIC SCRUBBER: Hard-coded fixes for common voice-to-text mistakes
+    user_input = query.text.lower().replace("or tx", "rtx").replace("forty ninety", "4090").replace("fifty ninety", "5090")
+    print(f"Sanitized Input: {user_input}")
     
     inv_keys = ['add', 'remove', 'delete', 'check', 'stock', 'inventory', 'have']
     
     try:
         if any(k in user_input for k in inv_keys):
-            # Pass 1: Extraction & Standardization
             response = ollama.chat(
                 model='llama3.1',
                 messages=[
-                    {
-                        'role': 'system', 
-                        'content': 'You are a precise data extractor. Split messy input into "name" and "price". '
-                                   'If input is "rtx50902500", Name is "RTX 5090", Price is 2500. '
-                                   'Remove words like "add", "at", or "for" from the product name.'
-                    },
+                    {'role': 'system', 'content': 'Extractor: If product and price are merged like "rtx50902500", split into Name="RTX 5090", Price=2500.'},
                     {'role': 'user', 'content': user_input}
                 ],
                 tools=[tools.add_to_inventory, tools.check_inventory, tools.remove_from_inventory]
             )
-            
             if response.message.tool_calls:
-                res_list = []
-                for t in response.message.tool_calls:
-                    func = getattr(tools, t.function.name)
-                    res_list.append(func(**t.function.arguments))
-                return {"response": " ".join(res_list)}
-            
+                res = [getattr(tools, t.function.name)(**t.function.arguments) for t in response.message.tool_calls]
+                return {"response": " ".join(res)}
             return {"response": response.message.content}
-        
         else:
-            # Research Path (Unchanged but refined)
-            kw = ollama.generate(model='llama3.1', prompt=f"Search keywords for: '{user_input}'")['response'].strip()
+            kw = ollama.generate(model='llama3.1', prompt=f"Search keywords: '{user_input}'")['response'].strip()
             data = tools.web_research(kw)
-            summary = ollama.chat(model='llama3.1', messages=[{'role': 'system', 'content': 'Summarize research in one short sentence.'}, {'role': 'user', 'content': f"Data: {data}\nQ: {user_input}"}])
+            summary = ollama.chat(model='llama3.1', messages=[{'role': 'system', 'content': 'Summarize research in one sentence.'}, {'role': 'user', 'content': f"Data: {data}\nQ: {user_input}"}])
             return {"response": summary.message.content}
-            
     except Exception as e:
-        return {"response": f"System error: {str(e)}"}
+        return {"response": f"System Error: {str(e)}"}
 
 if __name__ == "__main__":
     import uvicorn
