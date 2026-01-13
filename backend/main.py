@@ -2,16 +2,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import ollama
-from contextlib import asynccontextmanager
-from database import init_db
 import tools
+from database import init_db
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    init_db()
-    yield
-
-app = FastAPI(lifespan=lifespan)
+app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 class Query(BaseModel):
@@ -19,49 +13,45 @@ class Query(BaseModel):
 
 @app.post("/api/chat")
 async def chat(query: Query):
-    print(f"User Request: {query.text}")
+    print(f"User Input: {query.text}")
     
-    tools_list = [
-        tools.add_to_inventory, 
-        tools.remove_from_inventory, 
-        tools.check_inventory, 
-        tools.web_research, 
-        tools.check_shipping_status
-    ]
-
-    try:
-        # Pass 1: Initial AI thinking
+    # PASS 1: Keyword Extraction (The 'Sorting' Layer)
+    # This turns "Hey can you find the price for a 4090" into "RTX 4090 price"
+    kw_prompt = f"Convert this to 3 search keywords: '{query.text}'. Output ONLY the keywords."
+    keywords = ollama.generate(model='llama3.1', prompt=kw_prompt)['response'].strip()
+    
+    # PASS 2: Intent Routing
+    text_lower = query.text.lower()
+    local_cmds = ['add', 'remove', 'delete', 'check', 'inventory', 'stock']
+    
+    if any(cmd in text_lower for cmd in local_cmds):
+        # Local Tool Path
         response = ollama.chat(
             model='llama3.1',
             messages=[{'role': 'user', 'content': query.text}],
-            tools=tools_list
+            tools=[tools.add_to_inventory, tools.check_inventory, tools.remove_from_inventory]
         )
-
+        
+        # Tool Execution Logic
         if response.message.tool_calls:
             for tool in response.message.tool_calls:
-                func_name = tool.function.name
-                func_args = tool.function.arguments
-                
-                # Execute the correct tool
-                if hasattr(tools, func_name):
-                    func = getattr(tools, func_name)
-                    raw_result = func(**func_args)
-                    
-                    # Pass 2: AI Summarization (The "Sorting" Pass)
-                    summary_call = ollama.chat(
-                        model='llama3.1',
-                        messages=[
-                            {'role': 'system', 'content': 'You are a shop assistant. Summarize the following data into a short, spoken sentence for the owner.'},
-                            {'role': 'user', 'content': f"Context: {query.text}\n\nRaw Data: {raw_result}"}
-                        ]
-                    )
-                    return {"response": summary_call.message.content}
+                func = getattr(tools, tool.function.name)
+                return {"response": func(**tool.function.arguments)}
         
         return {"response": response.message.content}
-    except Exception as e:
-        print(f"Ollama Error: {e}")
-        return {"response": "I encountered an error processing that. Please check if Ollama is running."}
+    
+    # PASS 3: Deep Research Path
+    raw_research = tools.web_research(keywords)
+    summary = ollama.chat(
+        model='llama3.1',
+        messages=[
+            {'role': 'system', 'content': 'You are a shop assistant. Summarize the research data into one concise, professional sentence.'},
+            {'role': 'user', 'content': f"Data: {raw_research}\n\nQuestion: {query.text}"}
+        ]
+    )
+    return {"response": summary.message.content}
 
 if __name__ == "__main__":
+    init_db()
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
