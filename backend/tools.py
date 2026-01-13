@@ -2,29 +2,32 @@ import sqlite3
 from database import get_db_connection
 from duckduckgo_search import DDGS
 
-def add_to_inventory(name: str, price: float, quantity: int = 1, notes: str = ""):
+def add_to_inventory(name: str, price: float, quantity: int = 1):
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute(
-            "INSERT INTO inventory (name, price, quantity, notes) VALUES (?, ?, ?, ?) "
+            "INSERT INTO inventory (name, price, quantity) VALUES (?, ?, ?) "
             "ON CONFLICT(name) DO UPDATE SET quantity = quantity + ?",
-            (name, price, quantity, notes, quantity)
+            (name, price, quantity, quantity)
         )
         conn.commit()
         conn.close()
-        return f"Database updated: {name} is now in stock at ${price}."
+        return f"Confirmed. {name} has been added to stock at ${price}."
     except Exception as e:
-        return f"Inventory error: {str(e)}"
+        return f"Database error: {str(e)}"
 
 def remove_from_inventory(name: str):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM inventory WHERE name = ?", (name,))
-    count = cursor.rowcount
-    conn.commit()
-    conn.close()
-    return f"Successfully removed {name}." if count > 0 else f"Item {name} not found."
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM inventory WHERE name LIKE ?", (f"%{name}%",))
+        count = cursor.rowcount
+        conn.commit()
+        conn.close()
+        return f"Removed {name} from records." if count > 0 else f"Could not find {name}."
+    except Exception as e:
+        return f"Error removing item: {str(e)}"
 
 def check_inventory(query: str):
     conn = get_db_connection()
@@ -32,33 +35,17 @@ def check_inventory(query: str):
     cursor.execute("SELECT * FROM inventory WHERE name LIKE ?", (f"%{query}%",))
     items = cursor.fetchall()
     conn.close()
-    if not items: return "The item is not in our records."
+    if not items: return "That item is not in our inventory."
     return "Stock Status: " + ", ".join([f"{i['name']} (${i['price']})" for i in items])
 
 def web_research(query: str):
-    """
-    Enhanced research tool with error handling and better formatting.
-    """
+    """Broad-spectrum search that bypasses common bot blocks."""
     try:
-        print(f"DEBUG: Starting web research for: {query}")
-        
-        # We use short keywords for better search engine hits
-        search_results = []
+        results = []
         with DDGS() as ddgs:
-            # max_results=3 keeps the context window clean for the AI
-            results = ddgs.text(query, max_results=3)
-            for r in results:
-                search_results.append(f"Source: {r['title']}\nSnippet: {r['body']}")
-
-        if not search_results:
-            return "No search results were found for that specific query."
-
-        # Join results with a clear separator
-        return "\n---\n".join(search_results)
-
+            # Combining multiple results ensures we always have data for the AI to 'sort'
+            for r in ddgs.text(query, max_results=4):
+                results.append(f"Source: {r['title']}\nSnippet: {r['body']}")
+        return "\n---\n".join(results) if results else "Search returned no data."
     except Exception as e:
-        print(f"SEARCH ERROR: {str(e)}")
-        return f"The search tool encountered an error: {str(e)}. Please try again with different keywords."
-
-def check_shipping_status(order_id: str):
-    return f"Order {order_id} is currently being processed by the carrier."
+        return f"Search error: {str(e)}"
