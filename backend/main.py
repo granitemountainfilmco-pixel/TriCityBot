@@ -15,36 +15,45 @@ class ChatRequest(BaseModel):
     text: str
 
 def route_command(user_input: str):
-    # Use the AI to determine the INTENT and the DATA
+    # SYSTEM PROMPT: Optimized for Llama 3.1 to be a strict router
     system_prompt = """
-    You are a shop assistant router. Analyze the user's request and categorize it.
-    Output ONLY the categorized command in this format: 
-    ACTION | ITEM_OR_TASK | PRICE | QTY
+    You are a Shop OS Router. Categorize the user's request into a tool command.
+    OUTPUT ONLY THE COMMAND STRING. NO PROSE. NO EXPLANATIONS.
     
-    Actions: LIST_INV, CHECK_INV, ADD_INV, REMOVE_INV, CREATE_TICKET, LIST_TICKETS, REMIND, RESEARCH, UNKNOWN
+    Format: ACTION | SUBJECT | VALUE | QTY
     
-    Examples:
-    - "What's in my inventory?" -> LIST_INV | None | 0 | 0
-    - "Do we have 5090s?" -> CHECK_INV | 5090 | 0 | 0
-    - "Add a 4090 for 1200" -> ADD_INV | 4090 | 1200 | 1
-    - "Create a ticket to fix the sink" -> CREATE_TICKET | fix the sink | 0 | 0
-    - "Remind me to call Bob at 5pm" -> REMIND | call Bob | 5pm | 0
+    Actions:
+    - LIST_INV (User wants to see all stock) -> LIST_INV | None | 0 | 0
+    - CHECK_INV (User asks if an item is in stock) -> CHECK_INV | [item name] | 0 | 0
+    - ADD_INV (User is adding items) -> ADD_INV | [item] | [price] | [qty]
+    - REMOVE_INV (User is deleting an item) -> REMOVE_INV | [item] | 0 | 0
+    - CREATE_TICKET (Work task/fix) -> CREATE_TICKET | [task] | 0 | 0
+    - LIST_TICKETS (See work to do) -> LIST_TICKETS | None | 0 | 0
+    - REMIND (Set a reminder) -> REMIND | [message] | [time] | 0
+    - RESEARCH (Find info online) -> RESEARCH | [query] | 0 | 0
+    
+    If you don't understand, output: UNKNOWN | None | 0 | 0
     """
 
-    res = ollama.chat(model='llama3.1', messages=[
-        {'role': 'system', 'content': system_prompt},
-        {'role': 'user', 'content': user_input}
-    ])
-    
-    # Parse the AI response
     try:
-        parts = res.message.content.split("|")
-        action = parts[0].strip()
-        subject = parts[1].strip()
-        price_or_time = parts[2].strip()
-        qty = parts[3].strip() if len(parts) > 3 else "1"
+        # Temperature 0.1 makes the AI more consistent and robotic (good for routing)
+        res = ollama.chat(model='llama3.1', messages=[
+            {'role': 'system', 'content': system_prompt},
+            {'role': 'user', 'content': user_input}
+        ], options={'temperature': 0.1})
+        
+        raw_output = res.message.content.strip()
+        print(f"AI Router Output: {raw_output}") # Useful for debugging in terminal
 
-        # Route to the existing tools.py functions
+        # Split and handle potential AI formatting errors
+        parts = [p.strip() for p in raw_output.split("|")]
+        if len(parts) < 4:
+            # Fallback if AI forgets a pipe
+            return "The AI router failed to format the command. Try rephrasing."
+
+        action, subject, value, qty = parts[0], parts[1], parts[2], parts[3]
+
+        # --- Tool Execution ---
         if action == "LIST_INV":
             return tools.list_inventory()
         
@@ -52,7 +61,9 @@ def route_command(user_input: str):
             return tools.check_inventory(subject)
             
         elif action == "ADD_INV":
-            return tools.add_to_inventory(subject, price_or_time, int(qty))
+            # Strip '$' if the AI included it
+            clean_price = value.replace('$', '').replace(',', '')
+            return tools.add_to_inventory(subject, clean_price, int(qty) if qty.isdigit() else 1)
             
         elif action == "REMOVE_INV":
             return tools.remove_from_inventory(subject)
@@ -64,29 +75,38 @@ def route_command(user_input: str):
             return tools.list_tickets()
             
         elif action == "REMIND":
-            return tools.create_reminder(subject, price_or_time)
+            return tools.create_reminder(subject, value)
             
         elif action == "RESEARCH":
-            data = tools.web_research(subject)
+            web_data = tools.web_research(subject)
             summary = ollama.chat(model='llama3.1', messages=[
-                {'role': 'system', 'content': "Summarize into 3 sentences."},
-                {'role': 'user', 'content': data}
+                {'role': 'system', 'content': "Summarize into 3 sentences. Objective tone."},
+                {'role': 'user', 'content': f"Research data: {web_data}"}
             ])
             return summary.message.content
-            
+
     except Exception as e:
-        print(f"Routing Error: {e}")
-        
-    return "I understood the request but couldn't process the tool. Try again."
+        print(f"Error in Router: {e}")
+        return "Internal Routing Error."
+
+    return "Command not recognized. Try 'Shop add RTX 5090 2500'."
 
 @app.post("/api/chat")
 async def chat(req: ChatRequest):
     msg = req.text.lower().strip()
-    # Simple check for wake words to avoid unnecessary AI calls
-    for w in ["hey shop", "okay shop", "shop"]:
+    trigger_words = ["hey shop", "okay shop", "shop"]
+    
+    remainder = None
+    for w in trigger_words:
         if msg.startswith(w):
-            return {"response": route_command(msg[len(w):].strip())}
-    return {"response": ""}
+            remainder = msg[len(w):].strip()
+            break
+            
+    if not remainder:
+        return {"response": ""}
+
+    response = route_command(remainder)
+    return {"response": response}
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
