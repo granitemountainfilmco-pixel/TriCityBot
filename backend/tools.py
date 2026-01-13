@@ -29,6 +29,19 @@ def check_inventory(query: str):
         res += f"{i['name']} (${i['price']}). "
     return res
 
+def remove_from_inventory(name: str):
+    """Removes an item completely from the database."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM inventory WHERE name = ?", (name,))
+    rowcount = cursor.rowcount
+    conn.commit()
+    conn.close()
+    if rowcount > 0:
+        return f"Successfully removed {name} from the inventory."
+    else:
+        return f"Could not find {name} in the inventory."
+        
 def web_research(query: str):
     try:
         results_list = []
