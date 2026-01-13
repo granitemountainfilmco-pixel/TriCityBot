@@ -1,4 +1,3 @@
-import re
 import uvicorn
 import ollama
 from fastapi import FastAPI
@@ -6,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import tools 
 from database import init_db
+import re
 
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -15,68 +15,78 @@ class ChatRequest(BaseModel):
     text: str
 
 def route_command(user_input: str):
-    user_input = user_input.lower().strip()
+    # Use the AI to determine the INTENT and the DATA
+    system_prompt = """
+    You are a shop assistant router. Analyze the user's request and categorize it.
+    Output ONLY the categorized command in this format: 
+    ACTION | ITEM_OR_TASK | PRICE | QTY
+    
+    Actions: LIST_INV, CHECK_INV, ADD_INV, REMOVE_INV, CREATE_TICKET, LIST_TICKETS, REMIND, RESEARCH, UNKNOWN
+    
+    Examples:
+    - "What's in my inventory?" -> LIST_INV | None | 0 | 0
+    - "Do we have 5090s?" -> CHECK_INV | 5090 | 0 | 0
+    - "Add a 4090 for 1200" -> ADD_INV | 4090 | 1200 | 1
+    - "Create a ticket to fix the sink" -> CREATE_TICKET | fix the sink | 0 | 0
+    - "Remind me to call Bob at 5pm" -> REMIND | call Bob | 5pm | 0
+    """
 
-    # 1. LISTING & CHECKING (Priority)
-    if any(k in user_input for k in ["list", "what are", "show", "check", "have", "stock"]):
-        if "ticket" in user_input:
-            return tools.list_tickets()
-        
-        # CLEANING the search term: remove command words to find the ITEM
-        search_term = user_input
-        for word in ["check", "inventory", "stock", "do we have", "any", "list", "what are"]:
-            search_term = search_term.replace(word, "")
-        search_term = search_term.strip()
-
-        if not search_term:
-            return tools.list_inventory()
-        return tools.check_inventory(search_term)
-
-    # 2. REMOVAL
-    if any(k in user_input for k in ["remove", "delete"]):
-        name = user_input.replace("remove", "").replace("delete", "").replace("the", "").strip()
-        return tools.remove_from_inventory(name)
-
-    # 3. TICKET LOGIC
-    if "ticket" in user_input:
-        res = ollama.generate(model='llama3.1', prompt=f"Extract task from: '{user_input}'. Output ONLY task.")
-        return tools.create_ticket(res['response'].strip())
-
-    # 4. REMINDER LOGIC
-    if "remind" in user_input:
-        res = ollama.chat(model='llama3.1', messages=[
-            {'role': 'system', 'content': "Extract 'task' and 'time' from input. Format: TASK | TIME."},
-            {'role': 'user', 'content': user_input}
-        ])
+    res = ollama.chat(model='llama3.1', messages=[
+        {'role': 'system', 'content': system_prompt},
+        {'role': 'user', 'content': user_input}
+    ])
+    
+    # Parse the AI response
+    try:
         parts = res.message.content.split("|")
-        task = parts[0].strip()
-        time = parts[1].strip() if len(parts) > 1 else "ASAP"
-        return tools.create_reminder(task, time)
+        action = parts[0].strip()
+        subject = parts[1].strip()
+        price_or_time = parts[2].strip()
+        qty = parts[3].strip() if len(parts) > 3 else "1"
 
-    # 5. ADD LOGIC (Regex)
-    add_match = re.search(r"add\s+(.*)\s+(?:for|at|is)?\s*[\$\s]*(\d+(?:\.\d{2})?)(?:\s+(?:qty|x)?\s*(\d+))?$", user_input)
-    if add_match:
-        name, price, qty = add_match.groups()
-        return tools.add_to_inventory(name, price, int(qty) if qty else 1)
-
-    # 6. RESEARCH
-    if any(k in user_input for k in ["research", "find", "price"]):
-        query = ollama.generate(model='llama3.1', prompt=f"Extract product from: {user_input}")['response'].strip()
-        data = tools.web_research(query)
-        summary = ollama.chat(model='llama3.1', messages=[
-            {'role': 'system', 'content': "Summarize into 3 sentences. No lists."},
-            {'role': 'user', 'content': f"FACTS: {data}"}], options={'temperature': 0.1})
-        return summary.message.content
-
-    return "Command not recognized. Try 'Shop add RTX 5090 2500'."
+        # Route to the existing tools.py functions
+        if action == "LIST_INV":
+            return tools.list_inventory()
+        
+        elif action == "CHECK_INV":
+            return tools.check_inventory(subject)
+            
+        elif action == "ADD_INV":
+            return tools.add_to_inventory(subject, price_or_time, int(qty))
+            
+        elif action == "REMOVE_INV":
+            return tools.remove_from_inventory(subject)
+            
+        elif action == "CREATE_TICKET":
+            return tools.create_ticket(subject)
+            
+        elif action == "LIST_TICKETS":
+            return tools.list_tickets()
+            
+        elif action == "REMIND":
+            return tools.create_reminder(subject, price_or_time)
+            
+        elif action == "RESEARCH":
+            data = tools.web_research(subject)
+            summary = ollama.chat(model='llama3.1', messages=[
+                {'role': 'system', 'content': "Summarize into 3 sentences."},
+                {'role': 'user', 'content': data}
+            ])
+            return summary.message.content
+            
+    except Exception as e:
+        print(f"Routing Error: {e}")
+        
+    return "I understood the request but couldn't process the tool. Try again."
 
 @app.post("/api/chat")
 async def chat(req: ChatRequest):
     msg = req.text.lower().strip()
+    # Simple check for wake words to avoid unnecessary AI calls
     for w in ["hey shop", "okay shop", "shop"]:
         if msg.startswith(w):
             return {"response": route_command(msg[len(w):].strip())}
-    return {"response": ""} # Always return a string for the frontend
+    return {"response": ""}
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
