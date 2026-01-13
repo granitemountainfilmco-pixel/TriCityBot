@@ -1,51 +1,32 @@
-README.md
+**Backend**
+Ensure Ollama is downloaded from ollama.com
 
-ShopOS: Computer Shop Management System
+Open your terminal and run: ollama pull llama3.1
 
-Prerequisites
+Keep the terminal open or make sure ollama is running in the background
 
-    Ollama: Download and run ollama pull llama3.1
+In a new terminal window, navigate to the main folder of the program, than
 
-    Python 3.10+
+For Windows, Run: 
+cd backend
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
+python main.py 
 
-    Node.js & npm
-
-1. Brain (Ollama) Run in terminal: ollama serve
-
-2. Backend (FastAPI) Run in new terminal:
-Bash
-
+For Ubuntu, Run:
 cd backend
 python3 -m venv venv
-# Windows
-venv\Scripts\activate
-# Ubuntu/Linux
 source venv/bin/activate
-
 pip install -r requirements.txt
-uvicorn main:app --host 0.0.0.0 --port 8000
+python3 main.py
 
-3. Frontend (React) Run in new terminal:
-Bash
-
+**Frontend**
+Open a second terminal and navigate to the main folder of the program, than run
 cd frontend
 npm install
 npm run dev
 
-Access at http://localhost:5173
-
-Features
-
-    Add: "Add to inventory [item], price [number], notes [text]"
-
-    Remove: "Remove from inventory [item]"
-
-    Check: "Check inventory for [item]"
-
-    Research: "Research [topic]" (Uses DuckDuckGo)
-
-File Structure
-
-    /backend: Python logic and SQLite database.
-
-    /frontend: React/TypeScript interface.
+The output will normally say Local: http://localhost:5173
+Run it in chrome (best for this program without extra plugins)
+Alow microphone permission, and it should be running.
