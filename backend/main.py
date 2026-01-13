@@ -50,3 +50,8 @@ async def chat(query: Query):
         }, {'role': 'user', 'content': user_input}]
     )
     return {"response": summary.message.content}
+
+if __name__ == "__main__":
+    import uvicorn
+    # This starts the server on port 8000
+    uvicorn.run(app, host="0.0.0.0", port=8000)
