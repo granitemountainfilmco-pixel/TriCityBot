@@ -3,7 +3,8 @@ from tavily import TavilyClient
 from database import get_db_connection
 
 # Get your key from tavily.com (Free tier: 1000 searches/mo)
-TAVILY_API_KEY = "tvly-YOUR_ACTUAL_API_KEY_HERE"
+TAVILY_API_KEY = "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"
+#Replace this with yours
 tavily = TavilyClient(api_key=TAVILY_API_KEY)
 
 def add_to_inventory(name: str, price: str, quantity: int = 1):
