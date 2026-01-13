@@ -2,7 +2,7 @@
 set "ROOT_DIR=%~dp0"
 
 :: 1. Start Ollama AI
-start /min "" ollama serve
+start "" ollama serve
 
 :: 2. Backend Setup & Start
 echo [BACKEND] Checking paths...
