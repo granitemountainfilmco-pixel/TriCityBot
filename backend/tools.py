@@ -1,8 +1,12 @@
+import os
 import sqlite3
 from database import get_db_connection
 from tavily import TavilyClient
+from dotenv import load_dotenv
 
-TAVILY_API_KEY = "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"
+load_dotenv()
+
+TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
 tavily = TavilyClient(api_key=TAVILY_API_KEY)
 
 # --- INVENTORY ---
