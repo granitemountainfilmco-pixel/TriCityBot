@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 interface Message {
   sender: 'user' | 'bot';
@@ -6,112 +6,90 @@ interface Message {
 }
 
 export default function ChatInterface() {
-  const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [isListening, setIsListening] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const recognitionRef = useRef<any>(null);
 
-  // --- Browser Voice Recognition ---
-  const startListening = () => {
+  // Initialize Speech Recognition once
+  useEffect(() => {
     const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
-    
-    if (!SpeechRecognition) {
-      alert("Voice recognition not supported in this browser. Please use Chrome.");
-      return;
+    if (SpeechRecognition) {
+      recognitionRef.current = new SpeechRecognition();
+      recognitionRef.current.continuous = false;
+      recognitionRef.current.lang = 'en-US';
+
+      recognitionRef.current.onstart = () => setIsListening(true);
+      recognitionRef.current.onend = () => setIsListening(false);
+      
+      recognitionRef.current.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        handleSend(transcript);
+      };
     }
+  }, []);
 
-    const recognition = new SpeechRecognition();
-    recognition.lang = 'en-US';
-    recognition.interimResults = false;
-
-    recognition.onstart = () => setIsListening(true);
-    recognition.onend = () => setIsListening(false);
-    
-    recognition.onresult = (event: any) => {
-      const transcript = event.results[0][0].transcript;
-      setInput(transcript);
-      handleSend(transcript);
-    };
-
-    recognition.start();
+  const startListening = () => {
+    try {
+      recognitionRef.current?.start();
+    } catch (e) {
+      console.log("Recognition already started or blocked.");
+    }
   };
 
-  // --- Communication with Python Backend ---
   const handleSend = async (text: string) => {
     if (!text.trim()) return;
-
-    const userMsg: Message = { sender: 'user', text };
-    setMessages(prev => [...prev, userMsg]);
-    setInput('');
+    setMessages(prev => [...prev, { sender: 'user', text }]);
     setIsLoading(true);
 
     try {
-      const response = await fetch('http://localhost:8000/api/chat', {
+      const res = await fetch('http://localhost:8000/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text }),
       });
+      const data = await res.json();
+      setMessages(prev => [...prev, { sender: 'bot', text: data.response }]);
 
-      const data = await response.json();
-      const botMsg: Message = { sender: 'bot', text: data.response };
-      
-      setMessages(prev => [...prev, botMsg]);
+      // --- AUTO-VOICE ACTIVATION LOOP ---
+      const utterance = new SpeechSynthesisUtterance(data.response);
+      utterance.onend = () => {
+        console.log("AI finished. Restarting listener...");
+        startListening(); // This makes it voice-activated
+      };
+      window.speechSynthesis.speak(utterance);
 
-      // Simple Text-to-Speech (Feedback)
-      const speech = new SpeechSynthesisUtterance(data.response);
-      window.speechSynthesis.speak(speech);
-
-    } catch (error) {
-      setMessages(prev => [...prev, { sender: 'bot', text: "Error: Backend not reachable." }]);
+    } catch (err) {
+      setMessages(prev => [...prev, { sender: 'bot', text: "Server error." }]);
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden">
-      {/* Message Display */}
-      <div className="h-[500px] overflow-y-auto p-6 space-y-4 bg-slate-800/50">
-        {messages.map((msg, i) => (
-          <div key={i} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`px-4 py-2 rounded-2xl max-w-[85%] ${
-              msg.sender === 'user' 
-                ? 'bg-blue-600 text-white rounded-tr-none' 
-                : 'bg-slate-700 text-slate-100 rounded-tl-none border border-slate-600'
-            }`}>
-              <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
+    <div className="bg-slate-800 rounded-xl shadow-2xl p-6 w-full max-w-2xl border border-slate-700">
+      <div className="h-96 overflow-y-auto mb-4 space-y-4 pr-2">
+        {messages.map((m, i) => (
+          <div key={i} className={`flex ${m.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+            <div className={`p-3 rounded-lg text-sm ${m.sender === 'user' ? 'bg-blue-600' : 'bg-slate-700 text-slate-200'}`}>
+              {m.text}
             </div>
           </div>
         ))}
-        {isLoading && <div className="text-blue-400 text-xs animate-pulse">Assistant is thinking...</div>}
+        {isLoading && <div className="text-xs text-blue-400 animate-pulse">Assistant is thinking...</div>}
       </div>
-
-      {/* Input Controls */}
-      <div className="p-4 bg-slate-900/80 border-t border-slate-700 flex items-center gap-3">
-        <button
+      <div className="flex gap-2">
+        <button 
           onClick={startListening}
-          className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
-            isListening ? 'bg-red-500 scale-110' : 'bg-slate-700 hover:bg-slate-600'
-          }`}
+          className={`p-4 rounded-full ${isListening ? 'bg-red-500 animate-pulse' : 'bg-slate-600'}`}
         >
-          {isListening ? '🛑' : '🎤'}
+          🎤
         </button>
-        
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleSend(input)}
-          placeholder="Ask about inventory or research..."
-          className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        <input 
+          className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-4 text-white"
+          placeholder="Speak or type..."
+          onKeyDown={(e) => e.key === 'Enter' && handleSend((e.target as HTMLInputElement).value)}
         />
-
-        <button
-          onClick={() => handleSend(input)}
-          className="bg-blue-600 hover:bg-blue-500 px-5 py-3 rounded-xl font-semibold transition-colors"
-        >
-          Send
-        </button>
       </div>
     </div>
   );
