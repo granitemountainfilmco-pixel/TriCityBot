@@ -2,6 +2,12 @@ import os
 import sqlite3
 from database import get_db_connection
 from tavily import TavilyClient
+from googleapiclient.discovery import build
+from google_auth_oauthlib.flow import InstalledAppFlow
+from google.auth.transport.requests import Request
+import pickle
+
+SCOPES = ['https://www.googleapis.com/auth/calendar']
 
 TAVILY_API_KEY = "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"
 tavily = TavilyClient(api_key=TAVILY_API_KEY)
@@ -118,3 +124,36 @@ def web_research(query):
         return "\n".join([r['content'] for r in response['results']])
     except:
         return "Search failed."
+
+def get_calendar_service():
+    creds = None
+    # token.json stores the user's access and refresh tokens
+    if os.path.exists('token.json'):
+        with open('token.json', 'rb') as token:
+            creds = pickle.load(token)
+    
+    # If no valid credentials, let Greg log in
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            if not os.path.exists('credentials.json'):
+                return "Error: credentials.json missing. Ask Greg to add it from Google Cloud Console."
+            flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
+            creds = flow.run_local_server(port=0)
+        with open('token.json', 'wb') as token:
+            pickle.dump(creds, token)
+
+    return build('calendar', 'v3', credentials=creds)
+
+def add_calendar_event(summary, start_time):
+    service = get_calendar_service()
+    if isinstance(service, str): return service # Return error if credentials missing
+    
+    event = {
+        'summary': summary,
+        'start': {'dateTime': f"{start_time}:00", 'timeZone': 'MST'},
+        'end': {'dateTime': f"{start_time}:00", 'timeZone': 'MST'}, # You can add logic to +1 hour
+    }
+    event = service.events().insert(calendarId='primary', body=event).execute()
+    return f"Event created: {event.get('htmlLink')}"
