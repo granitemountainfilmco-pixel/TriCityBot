@@ -1,17 +1,38 @@
 @echo off
-echo Starting ShopOS Ecosystem...
+SETLOCAL EnableDelayedExpansion
 
-:: 1. Start Ollama in the background
-start /min ollama serve
+:: Get the directory where this script is located
+set "ROOT_DIR=%~dp0"
+cd /d "%ROOT_DIR%"
 
-:: 2. Start Backend
-echo Launching Backend...
-start "ShopOS-Backend" cmd /k "cd backend && venv\Scripts\activate && python main.py"
+echo [1/4] Detecting Directory: %ROOT_DIR%
 
-:: 3. Start Frontend
-echo Launching Frontend...
-start "ShopOS-Frontend" cmd /k "cd frontend && npm run dev"
+:: 1. Start Ollama (Hidden)
+echo [2/4] Starting Ollama...
+start /min "" ollama serve
 
-:: 4. Wait a moment for servers to initialize, then open Chrome
-timeout /t 5
+:: 2. Setup and Start Backend
+echo [3/4] Initializing Backend...
+cd /d "%ROOT_DIR%backend"
+if not exist "venv" (
+    echo Creating Python Virtual Environment...
+    python -m venv venv
+)
+call venv\Scripts\activate
+echo Installing/Updating Backend Requirements...
+pip install -r requirements.txt --quiet
+start "ShopOS-Backend" cmd /k "python main.py"
+
+:: 3. Setup and Start Frontend
+echo [4/4] Initializing Frontend...
+cd /d "%ROOT_DIR%frontend"
+if not exist "node_modules" (
+    echo Installing Node Modules (this may take a minute)...
+    call npm install
+)
+start "ShopOS-Frontend" cmd /k "npm run dev"
+
+:: 4. Final Launch
+echo Everything is launching. Waiting for servers...
+timeout /t 8
 start chrome http://localhost:5173
