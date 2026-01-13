@@ -28,7 +28,6 @@ def add_to_inventory(name, price, quantity=1):
 def check_inventory(term):
     conn = get_db_connection()
     cursor = conn.cursor()
-    # Fuzzy search: Finds 'RTX 5090' even if you just say '5090'
     query = f"%{term.upper().strip()}%"
     cursor.execute("SELECT * FROM inventory WHERE name LIKE ?", (query,))
     items = cursor.fetchall()
@@ -48,17 +47,18 @@ def list_inventory():
 def remove_from_inventory(name):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM inventory WHERE name = ?", (name.upper().strip(),))
+    # Using UPPER for consistency
+    cursor.execute("DELETE FROM inventory WHERE UPPER(name) = ?", (name.upper().strip(),))
     success = cursor.rowcount > 0
     conn.commit()
     conn.close()
     return f"Removed {name.upper()}." if success else f"Could not find {name} to remove."
 
-# --- WORK TICKETS & REMINDERS ---
+# --- WORK TICKETS ---
 def create_ticket(desc):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO tickets (description) VALUES (?)", (desc,))
+    cursor.execute("INSERT INTO tickets (description, status) VALUES (?, 'OPEN')", (desc,))
     conn.commit()
     conn.close()
     return f"Ticket Created: {desc}"
@@ -72,6 +72,16 @@ def list_tickets():
     if not items: return "No open work tickets."
     return "To-Do List:\n" + "\n".join([f"#{i['id']}: {i['description']}" for i in items])
 
+def delete_ticket(ticket_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM tickets WHERE id = ?", (ticket_id,))
+    success = cursor.rowcount > 0
+    conn.commit()
+    conn.close()
+    return f"Ticket #{ticket_id} closed/deleted." if success else f"Ticket #{ticket_id} not found."
+
+# --- REMINDERS ---
 def create_reminder(msg, time):
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -83,15 +93,24 @@ def create_reminder(msg, time):
 def list_reminders():
     conn = get_db_connection()
     cursor = conn.cursor()
-    # Assuming 'reminders' table exists based on your create_reminder function
     cursor.execute("SELECT message, remind_at FROM reminders ORDER BY remind_at ASC")
     items = cursor.fetchall()
     conn.close()
-    if not items: 
-        return "You have no scheduled reminders."
-    
-    return "Upcoming Reminders:\n" + "\n".join([f"- {i['message']} (at {i['remind_at']})" for i in items])
+    if not items: return "No active reminders."
+    return "Reminders:\n" + "\n".join([f"- {i['message']} ({i['remind_at']})" for i in items])
 
+def delete_reminder(msg):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    # Fuzzy match for reminders since users rarely type the message exactly
+    query = f"%{msg.strip()}%"
+    cursor.execute("DELETE FROM reminders WHERE message LIKE ?", (query,))
+    success = cursor.rowcount > 0
+    conn.commit()
+    conn.close()
+    return f"Deleted reminder matching '{msg}'." if success else f"No reminder found matching '{msg}'."
+
+# --- RESEARCH ---
 def web_research(query):
     try:
         response = tavily.search(query=query, max_results=3)
