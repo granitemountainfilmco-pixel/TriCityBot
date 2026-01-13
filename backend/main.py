@@ -1,15 +1,10 @@
 import re
 import uvicorn
+import ollama
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from tools import (
-    add_to_inventory,
-    remove_from_inventory,
-    check_inventory,
-    list_inventory,
-    web_research
-)
+import tools # Import the whole module to access functions
 
 app = FastAPI()
 
@@ -22,117 +17,70 @@ app.add_middleware(
 )
 
 # =========================
-# CONFIG
+# REQUEST MODEL (Matches Frontend)
 # =========================
-
-WAKE_WORDS = ["hey shop"]
-VALID_COMMANDS = {"add", "remove", "check", "list", "research"}
-
-# =========================
-# REQUEST MODEL
-# =========================
-
 class ChatRequest(BaseModel):
-    message: str
-
-# =========================
-# HELPERS
-# =========================
-
-def extract_after_wake(message: str):
-    msg = message.lower().strip()
-    for w in WAKE_WORDS:
-        if msg.startswith(w):
-            return msg[len(w):].strip()
-    return None
-
-
-def parse_add_args(args):
-    price = None
-    price_index = None
-
-    for i in reversed(range(len(args))):
-        token = args[i].replace(".", "", 1)
-        if token.isdigit():
-            price = float(args[i])
-            price_index = i
-            break
-
-    if price is None or price_index == 0:
-        return None
-
-    name = " ".join(args[:price_index])
-    qty = 1
-
-    if price_index + 1 < len(args) and args[price_index + 1].isdigit():
-        qty = int(args[price_index + 1])
-
-    return name, price, qty
+    text: str # Changed from 'message' to 'text' to fix 422 error
 
 # =========================
 # COMMAND ROUTER
 # =========================
+def route_command(user_input: str):
+    user_input = user_input.lower().strip()
 
-def route_command(text: str):
-    parts = text.split()
-    if not parts:
-        return None
+    # 1. ROBUST ADD LOGIC (Handles names with numbers like RTX 5090)
+    # Matches: "add [name] [price]", "add [name] at [price]", etc.
+    add_match = re.search(r"add\s+(.*?)\s+(?:for|at|is)?\s*[\$\s]*(\d+(?:\.\d{2})?)(?:\s+(?:qty|x)?\s*(\d+))?$", user_input)
+    if add_match:
+        name, price, qty = add_match.groups()
+        qty = int(qty) if qty else 1
+        return tools.add_to_inventory(name, price, qty)
 
-    cmd = parts[0]
-    args = parts[1:]
+    # 2. INVENTORY MANAGEMENT (Check/Remove/List)
+    if any(k in user_input for k in ["check", "stock", "have"]):
+        # Use AI to find the item name in the sentence
+        response = ollama.chat(model='llama3.1', messages=[{'role': 'user', 'content': user_input}], 
+                               tools=[{'type': 'function', 'function': {'name': 'check_inventory', 'parameters': {'type': 'object', 'properties': {'query': {'type': 'string'}}}} }])
+        if response.message.tool_calls:
+            return tools.check_inventory(**response.message.tool_calls[0].function.arguments)
 
-    if cmd not in VALID_COMMANDS:
-        return None
+    if "list" in user_input:
+        return tools.list_inventory()
 
-    if cmd == "add":
-        parsed = parse_add_args(args)
-        if not parsed:
-            return "Usage: hey shop add <item> <price> [qty]"
-        name, price, qty = parsed
-        add_to_inventory(name, price, qty)
-        return f"Successfully logged: {name} at ${price:.2f} (x{qty})."
+    if "remove" in user_input or "delete" in user_input:
+        name = user_input.replace("remove", "").replace("delete", "").strip()
+        return tools.remove_from_inventory(name)
 
-    if cmd == "remove":
-        if not args:
-            return "Usage: hey shop remove <item>"
-        name = " ".join(args)
-        remove_from_inventory(name)
-        return f"Removed {name} from inventory."
+    # 3. RESEARCH (Uses AI to extract keywords first to avoid 'AdGuard' noise)
+    if "research" in user_input or "find" in user_input:
+        # Extract just the product name from the request
+        kw_gen = ollama.generate(model='llama3.1', prompt=f"Extract only the product name from: '{user_input}'. Output only the name.")
+        query = kw_gen['response'].strip()
+        print(f"DEBUG: Searching web for: {query}")
+        return tools.web_research(query)
 
-    if cmd == "check":
-        if not args:
-            return "Usage: hey shop check <item>"
-        return check_inventory(" ".join(args))
-
-    if cmd == "list":
-        return list_inventory()
-
-    if cmd == "research":
-        if not args:
-            return "Usage: hey shop research <query>"
-        return web_research(" ".join(args))
+    return "I understood the wake word, but I'm not sure what you want to do. Try 'add RTX 5090 2500'."
 
 # =========================
 # API ENDPOINT
 # =========================
-
 @app.post("/api/chat")
 async def chat(req: ChatRequest):
-    remainder = extract_after_wake(req.message)
-    if remainder is None or not remainder:
+    # Wake word filter
+    msg = req.text.lower().strip()
+    trigger_words = ["hey shop", "okay shop", "shop"]
+    
+    remainder = None
+    for w in trigger_words:
+        if msg.startswith(w):
+            remainder = msg[len(w):].strip()
+            break
+            
+    if not remainder:
         return {"response": None}
 
     response = route_command(remainder)
     return {"response": response}
 
-# =========================
-# ENTRY POINT (THIS WAS MISSING)
-# =========================
-
 if __name__ == "__main__":
-    uvicorn.run(
-        "main:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=True
-    )
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
