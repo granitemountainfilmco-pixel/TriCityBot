@@ -36,13 +36,29 @@ def check_inventory(query: str):
     return "Stock Status: " + ", ".join([f"{i['name']} (${i['price']})" for i in items])
 
 def web_research(query: str):
-    """Fetches raw data for the AI to analyze."""
+    """
+    Enhanced research tool with error handling and better formatting.
+    """
     try:
+        print(f"DEBUG: Starting web research for: {query}")
+        
+        # We use short keywords for better search engine hits
+        search_results = []
         with DDGS() as ddgs:
-            results = [r['body'] for r in ddgs.text(query, max_results=3)]
-        return " | ".join(results) if results else "No data found online."
+            # max_results=3 keeps the context window clean for the AI
+            results = ddgs.text(query, max_results=3)
+            for r in results:
+                search_results.append(f"Source: {r['title']}\nSnippet: {r['body']}")
+
+        if not search_results:
+            return "No search results were found for that specific query."
+
+        # Join results with a clear separator
+        return "\n---\n".join(search_results)
+
     except Exception as e:
-        return f"Research tool failed: {str(e)}"
+        print(f"SEARCH ERROR: {str(e)}")
+        return f"The search tool encountered an error: {str(e)}. Please try again with different keywords."
 
 def check_shipping_status(order_id: str):
     return f"Order {order_id} is currently being processed by the carrier."
