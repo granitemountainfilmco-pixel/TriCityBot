@@ -3,7 +3,7 @@ import sqlite3
 from database import get_db_connection
 from tavily import TavilyClient
 
-TAVILY_API_KEY = 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
+TAVILY_API_KEY = "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"
 tavily = TavilyClient(api_key=TAVILY_API_KEY)
 
 # --- INVENTORY ---
