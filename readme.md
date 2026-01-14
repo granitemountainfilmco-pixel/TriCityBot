@@ -66,3 +66,31 @@ Open a second terminal and navigate to the main folder of the program, than run:
 The output will normally say Local: http://localhost:5173
 It will automatically open chrome (make sure it's installed)
 Alow microphone permission, and it should be running.
+
+
+**Setting up Google Calendar**
+The TriCityBot uses the Google Calendar API to manage shop schedules and repair appointments. Follow these steps to link your shop's Google account.  
+
+Create Project: Go to the Google Cloud Console. Click New Project and name it TriCityBot.  
+
+Enable API: Search for "Google Calendar API" in the top search bar and click Enable. 
+
+Go to APIs & Services > OAuth consent screen.
+
+Select External and click Create.
+
+Enter an App Name (e.g., TriCityBot) and your email for support/contact info.
+
+Click Save and Continue until you reach the Test Users screen.
+
+IMPORTANT: Click + ADD USERS and enter the Gmail address you use for the shop.  
+
+Create Keys: - Go to the Credentials tab on the left.  
+
+Click + CREATE CREDENTIALS > OAuth client ID.  
+
+Select Application type: Desktop App.  
+
+Click Create, then click Download JSON.  
+
+Rename the downloaded file to exactly credentials.json and move it into the root folder of the TriCityBot project.
