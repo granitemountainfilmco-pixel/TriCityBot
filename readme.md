@@ -39,9 +39,9 @@ venv\Scripts\activate
 pip install -r requirements.txt
 python main.py
 
-```
 
-**For Ubuntu, Run:** ```bash
+**For Ubuntu, Run:**
+```
 cd backend
 python3 -m venv venv
 source venv/bin/activate
