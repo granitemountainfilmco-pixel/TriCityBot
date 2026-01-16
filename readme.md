@@ -1,4 +1,4 @@
-## ### Operation Instructions
+## Operation Instructions
 
 | Feature | Keywords / Triggers | Example Command |
 | --- | --- | --- |
