@@ -33,5 +33,3 @@ Say "Shop" or "Hey Shop" followed by a command:
 * [V]oice: Continuous listening for wake word
 * [T]ype: Manual command entry
 * [Q]uit: Exit application
-
-This video provides the essential technical foundation for the Google Calendar integration used in this script, showing how to handle authentication and event management in a Python environment.
