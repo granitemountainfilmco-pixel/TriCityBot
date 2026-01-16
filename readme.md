@@ -32,12 +32,14 @@ For Ubuntu make sure you open a terminal in the correct location (inside the mai
 
 In a new terminal window, navigate to the main folder of the program, then:
 
-**For Windows, Run:** ```bash
+**For Windows, Run:**
+```
 cd backend
 python -m venv venv
 venv\Scripts\activate
 pip install -r requirements.txt
 python main.py
+```
 
 
 **For Ubuntu, Run:**
