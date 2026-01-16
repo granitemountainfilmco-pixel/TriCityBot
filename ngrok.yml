@@ -1,9 +1,0 @@
-version: "2"
-authtoken: 38DQ0IbGXg75FbvlecFbaAX1Bvt_7sFYQX6Wy7SMwCUnd9Vea
-tunnels:
-  shop-frontend:
-    proto: http
-    addr: 5173
-  shop-backend:
-    proto: http
-    addr: 8000
